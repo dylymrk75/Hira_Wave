@@ -1,5 +1,4 @@
 # Hira_Wave
-# Hira-Joshi Wave Studio
 
 A standalone, browser-based generative polyrhythmic sequencer and ambient soundscape engine. Built for live performance, hardware MIDI sequencing, and deep-focus audio generation.
 
