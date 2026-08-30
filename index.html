@@ -263,7 +263,7 @@
                             <option value="harp">HARP</option><option value="piano">PIANO</option><option value="marimba">MARIMBA</option>
                             <option value="synthbass">BASS</option><option value="glockenspiel">GLOCK</option><option value="chiptune">8-BIT</option>
                             <option value="koto">KOTO</option><option value="hexpad">HEX PAD</option><option value="fmbell">FM BELL</option><option value="epiano">E-PIANO</option>
-                            <option value="sampler">🎛 SAMPLE</option>
+                            <option value="samplerA">🎛 SAMPLE A</option><option value="samplerB">🎛 SAMPLE B</option><option value="samplerC">🎛 SAMPLE C</option>
                         </select>
                     </label>
                     <label class="param">TRIGGER<select id="triggerModeCtrl"><option value="wall" selected>WALL BOUNCE</option><option value="center">CENTER TRIP</option></select></label>
@@ -374,16 +374,31 @@
         <details class="hardware-panel" id="customMediaBay">
             <summary class="section-label" style="margin-bottom: 0;"><div class="summary-header"><span>UPLOAD AUDIO AND VIDEO</span><span class="toggle-icon">▼</span></div></summary>
             <div class="panel-content">
-                <div class="sub-section-label">AUDIO / VIDEO SAMPLER</div>
-                <div class="sampler-controls">
-                    <button class="sampler-btn" id="uploadBtn">📁 LOAD AUDIO / VIDEO SAMPLE</button>
-                    <input type="file" id="fileInput" accept="audio/*,video/*,.wav,.aif,.aiff,.mp3,.m4a,.mp4,.mov" style="display:none;">
-                    <button class="sampler-btn" id="micRecordBtn">🎙️ REC MIC</button>
-                    <span class="status-badge" id="samplerStatus">NO AUDIO</span>
-                    <label class="param" style="flex-direction: row; align-items: center; gap: 8px; margin-left: auto;">
-                        <input type="checkbox" id="pitchLockCtrl" style="width: 16px; height: 16px; cursor: pointer; margin: 0;">ONE-SHOT (PITCH LOCK)
-                    </label>
+                <div class="sub-section-label">AUDIO MULTI-SAMPLER</div>
+                <div class="sampler-controls" style="flex-direction: column; align-items: flex-start; gap: 8px;">
+                    <div style="display: flex; gap: 10px; width: 100%; align-items: center;">
+                        <button class="sampler-btn" id="uploadBtnA">📁 LOAD SAMPLE A</button>
+                        <input type="file" id="fileInputA" accept="audio/*,video/*,.wav,.aif,.aiff,.mp3,.m4a,.mp4,.mov" style="display:none;">
+                        <span class="status-badge" id="samplerStatusA" style="flex: 1; text-align: right;">A: EMPTY</span>
+                    </div>
+                    <div style="display: flex; gap: 10px; width: 100%; align-items: center;">
+                        <button class="sampler-btn" id="uploadBtnB">📁 LOAD SAMPLE B</button>
+                        <input type="file" id="fileInputB" accept="audio/*,video/*,.wav,.aif,.aiff,.mp3,.m4a,.mp4,.mov" style="display:none;">
+                        <span class="status-badge" id="samplerStatusB" style="flex: 1; text-align: right;">B: EMPTY</span>
+                    </div>
+                    <div style="display: flex; gap: 10px; width: 100%; align-items: center;">
+                        <button class="sampler-btn" id="uploadBtnC">📁 LOAD SAMPLE C</button>
+                        <input type="file" id="fileInputC" accept="audio/*,video/*,.wav,.aif,.aiff,.mp3,.m4a,.mp4,.mov" style="display:none;">
+                        <span class="status-badge" id="samplerStatusC" style="flex: 1; text-align: right;">C: EMPTY</span>
+                    </div>
+                    <div style="display: flex; gap: 10px; width: 100%; align-items: center; margin-top: 5px;">
+                        <button class="sampler-btn" id="micRecordBtn">🎙️ REC MIC (TO A)</button>
+                        <label class="param" style="flex-direction: row; align-items: center; gap: 8px; margin-left: auto;">
+                            <input type="checkbox" id="pitchLockCtrl" style="width: 16px; height: 16px; cursor: pointer; margin: 0;">ONE-SHOT LOCK
+                        </label>
+                    </div>
                 </div>
+
                 <div class="sub-section-label" style="margin-top: 15px;">VIDEO BACKGROUND</div>
                 <div class="sampler-controls">
                     <button class="sampler-btn" id="uploadVideoBtn">🎞️ UPLOAD .MP4 BACKGROUND</button>
@@ -420,7 +435,6 @@
     </div>
 
     <video id="bgVideo" loop muted playsinline style="position: absolute; width: 1px; height: 1px; opacity: 0.01; pointer-events: none; z-index: -9999;"></video>
-
     <script>
         const bgVideoElement = document.getElementById('bgVideo'); const canvas = document.getElementById('canvas'); const ctx = canvas.getContext('2d'); const bgCanvas = document.getElementById('bgCanvas'); const bgCtx = bgCanvas.getContext('2d'); const sliceList = document.getElementById('sliceList'); const scrubber = document.getElementById('scrubCtrl');
         
@@ -431,12 +445,15 @@
         let customVideoActive = false; let audioCtx = null; let isPlaying = false; let globalPhaseTime = 0; const FULL_CYCLE_PHASE = 100 * Math.PI; let isScrubbing = false; let audioRecStartTime = 0; let lastFrameTime = performance.now();
         let isZenActive = false; let idleTimer; let focusedSliceId = null; let infoState = 0; let overlayDraggingActive = false; let overlayOffsetX = 0, overlayOffsetY = 0;
 
-        let appAudioMode = 'browser'; // 'browser', 'daw', 'hybrid'
+        let appAudioMode = 'browser';
 
         const playIconSvg = '<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>'; const pauseIconSvg = '<svg viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>'; const recIconSvg = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/></svg>'; const stopIconSvg = '<svg viewBox="0 0 24 24"><path d="M6 6h12v12H6z"/></svg>';
 
         let ambientStates = { sea: 0, rain: 0, vinyl: 0, fire: 0, wind: 0 }; const ambVolLevels = [0, 0.15, 0.35, 0.6]; const ambStateLabels = ['OFF', 'LOW', 'MED', 'MAX']; let ambientGains = { sea: null, rain: null, vinyl: null, fire: null, wind: null }; let ambienceInitialized = false;
-        let masterGain, streamDest, mediaRecorder; let recordedChunks = []; let isRecordingAudio = false; let globalDelay, delayFilter, delayFeedback, globalReverb; let midiAccess = null, currentMidiOutput = null; let customSampleBuffer = null, isMicRecording = false, micMediaRecorder = null, micChunks = [];
+        let masterGain, streamDest, mediaRecorder; let recordedChunks = []; let isRecordingAudio = false; let globalDelay, delayFilter, delayFeedback, globalReverb; let midiAccess = null, currentMidiOutput = null; 
+        
+        let customSampleBufferA = null, customSampleBufferB = null, customSampleBufferC = null;
+        let isMicRecording = false, micMediaRecorder = null, micChunks = [];
 
         let slicesData = [], activeSliceIds = [], isLoopMode = false, sliceCount = 1; let canvasMode = 'edit', isPulseEnabled = true, isTetherEnabled = true; let customPath = [], pathDistances = [0], totalPathLength = 0; let currentThemeIndex = 0, trailMode = 0, grainFrames = [];
 
@@ -557,17 +574,11 @@
             });
             const badge = document.getElementById('midiModeDisplay');
             if (mode === 'browser') {
-                badge.innerText = 'AUDIO: BROWSER';
-                badge.style.color = 'var(--accent-green)';
-                badge.style.borderColor = 'var(--accent-green)';
+                badge.innerText = 'AUDIO: BROWSER'; badge.style.color = 'var(--accent-green)'; badge.style.borderColor = 'var(--accent-green)';
             } else if (mode === 'daw') {
-                badge.innerText = 'MIDI: DAW (SILENT)';
-                badge.style.color = 'var(--accent-pink)';
-                badge.style.borderColor = 'var(--accent-pink)';
+                badge.innerText = 'MIDI: DAW (SILENT)'; badge.style.color = 'var(--accent-pink)'; badge.style.borderColor = 'var(--accent-pink)';
             } else if (mode === 'hybrid') {
-                badge.innerText = 'MODE: HYBRID';
-                badge.style.color = 'var(--warning-yellow)';
-                badge.style.borderColor = 'var(--warning-yellow)';
+                badge.innerText = 'MODE: HYBRID'; badge.style.color = 'var(--warning-yellow)'; badge.style.borderColor = 'var(--warning-yellow)';
             }
         }
 
@@ -576,11 +587,8 @@
             let midiNote = settings.pitchLock ? 60 + p.pitchShift : settings.pitch + (octave * 12) + hirajoshiIntervals[scaleDegree] + p.pitchShift;
             const glitchProb = settings.glitch; if (glitchProb > 0 && Math.random() < glitchProb) { const glitchRoll = Math.random(); if (glitchRoll < 0.4) return; else if (glitchRoll < 0.7) midiNote += 12; else midiNote += 7; }
             
-            // --- MIDI SAFEGUARD: OCTAVE WRAPPER ---
-            while(midiNote > 127) midiNote -= 12; 
-            while(midiNote < 0) midiNote += 12;
+            while(midiNote > 127) midiNote -= 12; while(midiNote < 0) midiNote += 12;
 
-            // --- MULTI-CHANNEL MIDI OUTPUT ---
             const targetMidiChannel = Math.max(1, Math.min(16, parseInt(settings.midiChannel) || 1));
             const chIndex = targetMidiChannel - 1;
             if (currentMidiOutput && (appAudioMode === 'daw' || appAudioMode === 'hybrid')) {
@@ -588,14 +596,28 @@
                 currentMidiOutput.send([0x80 | (chIndex & 0x0F), midiNote, 0], window.performance.now() + 1500);
             }
 
-            // --- BROWSER AUDIO ENGINE ---
             if (audioCtx && (appAudioMode === 'browser' || appAudioMode === 'hybrid')) {
                 const now = audioCtx.currentTime; const wowWobbleCents = Math.sin(now * 2.5) * (settings.tapeWow * 150); const dSend = audioCtx.createGain(); dSend.gain.setValueAtTime(settings.delayMix, now); const rSend = audioCtx.createGain(); rSend.gain.setValueAtTime(settings.revMix, now); const currentMixVolume = (settings.mix !== undefined ? settings.mix : 1.0) * fadeAlpha;
-                if (settings.instrument === 'sampler') {
+                
+                if (settings.instrument.startsWith('sampler')) {
                     const playSample = (noteOffset, volMultiplier) => {
-                        if (!customSampleBuffer) return; const source = audioCtx.createBufferSource(); source.buffer = customSampleBuffer; const baseRate = Math.pow(2, ((midiNote + noteOffset) - 60) / 12); source.playbackRate.value = baseRate * Math.pow(2, wowWobbleCents / 1200); const filter = audioCtx.createBiquadFilter(); filter.type = 'lowpass'; filter.frequency.value = settings.filter; const noteGain = audioCtx.createGain(); let peakVol = Math.max(0.0001, (1.0 * volMultiplier) * currentMixVolume); noteGain.gain.setValueAtTime(0, now); noteGain.gain.linearRampToValueAtTime(peakVol, now + 0.01); 
-                        source.connect(filter); filter.connect(noteGain); noteGain.connect(masterGain); noteGain.connect(dSend); dSend.connect(globalDelay); noteGain.connect(rSend); rSend.connect(globalReverb); source.start(now);
-                    }; playSample(0, 1); if (settings.fifthMix > 0) playSample(7, settings.fifthMix); return; 
+                        let activeBuffer = null;
+                        if(settings.instrument === 'samplerA') activeBuffer = customSampleBufferA;
+                        else if(settings.instrument === 'samplerB') activeBuffer = customSampleBufferB;
+                        else if(settings.instrument === 'samplerC') activeBuffer = customSampleBufferC;
+
+                        if (!activeBuffer) return; 
+                        const source = audioCtx.createBufferSource(); source.buffer = activeBuffer; 
+                        const baseRate = Math.pow(2, ((midiNote + noteOffset) - 60) / 12); 
+                        source.playbackRate.value = baseRate * Math.pow(2, wowWobbleCents / 1200); 
+                        const filter = audioCtx.createBiquadFilter(); filter.type = 'lowpass'; filter.frequency.value = settings.filter; 
+                        const noteGain = audioCtx.createGain(); let peakVol = Math.max(0.0001, (1.0 * volMultiplier) * currentMixVolume); 
+                        noteGain.gain.setValueAtTime(0, now); noteGain.gain.linearRampToValueAtTime(peakVol, now + 0.01); 
+                        source.connect(filter); filter.connect(noteGain); noteGain.connect(masterGain); noteGain.connect(dSend); dSend.connect(globalDelay); noteGain.connect(rSend); rSend.connect(globalReverb); 
+                        source.start(now);
+                    }; 
+                    playSample(0, 1); if (settings.fifthMix > 0) playSample(7, settings.fifthMix); 
+                    return; 
                 }
                 
                 let oscType = 'triangle', attackTime = 0.02, decayTime = 1.5, currentFilter = settings.filter;
@@ -1028,7 +1050,6 @@
         window.addEventListener('load', () => {
             document.addEventListener("fullscreenchange", () => { if (!document.fullscreenElement && isZenActive) { setZenMode(false); } });
             
-            // Re-wiring Theme Button to Cycle through all 16 themes
             document.getElementById('themeBtn').addEventListener('click', (e) => {
                 currentThemeIndex = (currentThemeIndex + 1) % visualThemes.length;
                 const t = visualThemes[currentThemeIndex];
@@ -1135,24 +1156,31 @@
 
             document.getElementById('cancelRenderBtn').addEventListener('click', () => { if (isExportingSnippet) { isRenderCancelled = true; isExportingSnippet = false; if (snippetMediaRecorder && snippetMediaRecorder.state !== 'inactive') { snippetMediaRecorder.stop(); } document.getElementById('exportProgressArea').style.display = 'none'; document.getElementById('renderSnippetBtn').innerText = 'EXPORT VIDEO (.MP4 / .WEBM)'; document.getElementById('renderSnippetBtn').disabled = false; } });
             
-            document.getElementById('uploadBtn').addEventListener('click', () => { document.getElementById('fileInput').click(); });
-            document.getElementById('fileInput').addEventListener('change', function(e) { 
-                let file = e.target.files[0]; if (!file) return; 
-                if (!audioCtx && appAudioMode !== 'daw') initAudio(); 
-                let reader = new FileReader(); 
-                reader.onload = function(ev) { 
-                    audioCtx.decodeAudioData(ev.target.result, function(buffer) { 
-                        customSampleBuffer = buffer; 
-                        document.getElementById('samplerStatus').innerText = `LOADED (${(buffer.duration).toFixed(2)}s)`; 
-                        document.getElementById('instCtrl').value = 'sampler';
-                        mainState.instrument = 'sampler';
-                    }, function(e){ 
-                        console.error("Error decoding audio data", e); 
-                        alert("Could not decode audio from this file. Try a standard .wav, .mp3, or .mp4.");
-                    }); 
-                }; 
-                reader.readAsArrayBuffer(file); 
-            });
+            const setupSampler = (letter) => {
+                document.getElementById(`uploadBtn${letter}`).addEventListener('click', () => { document.getElementById(`fileInput${letter}`).click(); });
+                document.getElementById(`fileInput${letter}`).addEventListener('change', function(e) { 
+                    let file = e.target.files[0]; if (!file) return; 
+                    if (!audioCtx && appAudioMode !== 'daw') initAudio(); 
+                    let reader = new FileReader(); 
+                    reader.onload = function(ev) { 
+                        audioCtx.decodeAudioData(ev.target.result, function(buffer) { 
+                            if(letter === 'A') customSampleBufferA = buffer;
+                            else if(letter === 'B') customSampleBufferB = buffer;
+                            else if(letter === 'C') customSampleBufferC = buffer;
+                            
+                            document.getElementById(`samplerStatus${letter}`).innerText = `${letter}: LOADED (${(buffer.duration).toFixed(2)}s)`; 
+                            document.getElementById('instCtrl').value = `sampler${letter}`;
+                            mainState.instrument = `sampler${letter}`;
+                            syncUI();
+                        }, function(e){ 
+                            console.error("Error decoding audio data", e); 
+                            alert("Could not decode audio from this file. Try a standard .wav, .mp3, or .mp4.");
+                        }); 
+                    }; 
+                    reader.readAsArrayBuffer(file); 
+                });
+            };
+            setupSampler('A'); setupSampler('B'); setupSampler('C');
 
             document.getElementById('uploadVideoBtn').addEventListener('click', () => { document.getElementById('videoInput').click(); });
             document.getElementById('videoInput').addEventListener('change', function(e) {
@@ -1163,10 +1191,10 @@
             document.getElementById('clearVideoBtn').addEventListener('click', () => { customVideoActive = false; bgVideoElement.pause(); bgVideoElement.src = ""; document.getElementById('videoStatus').innerText = 'NO VIDEO'; document.getElementById('clearVideoBtn').style.display = 'none'; document.getElementById('videoDimContainer').style.display = 'none'; forceCanvasWipe(); });
 
             document.getElementById('micRecordBtn').addEventListener('click', async () => {
-                if (!audioCtx) initAudio(); const btn = document.getElementById('micRecordBtn'); const status = document.getElementById('samplerStatus');
+                if (!audioCtx) initAudio(); const btn = document.getElementById('micRecordBtn'); const status = document.getElementById('samplerStatusA');
                 if (!isMicRecording) {
-                    try { const stream = await navigator.mediaDevices.getUserMedia({ audio: true }); micMediaRecorder = new MediaRecorder(stream); micChunks = []; micMediaRecorder.ondataavailable = e => micChunks.push(e.data); micMediaRecorder.onstop = async () => { const blob = new Blob(micChunks, { type: 'audio/webm' }); const arrayBuffer = await blob.arrayBuffer(); audioCtx.decodeAudioData(arrayBuffer, (buffer) => { customSampleBuffer = buffer; status.innerText = `CAPTURED (${(buffer.duration).toFixed(2)}s)`; }); stream.getTracks().forEach(track => track.stop()); }; micMediaRecorder.start(); isMicRecording = true; btn.classList.add('recording'); btn.innerText = '⏹ STOP MIC'; status.innerText = 'LISTENING...'; } catch (err) { status.innerText = 'MIC ERROR'; }
-                } else { if(micMediaRecorder && micMediaRecorder.state !== "inactive") micMediaRecorder.stop(); isMicRecording = false; btn.classList.remove('recording'); btn.innerText = '🎙️ REC MIC'; }
+                    try { const stream = await navigator.mediaDevices.getUserMedia({ audio: true }); micMediaRecorder = new MediaRecorder(stream); micChunks = []; micMediaRecorder.ondataavailable = e => micChunks.push(e.data); micMediaRecorder.onstop = async () => { const blob = new Blob(micChunks, { type: 'audio/webm' }); const arrayBuffer = await blob.arrayBuffer(); audioCtx.decodeAudioData(arrayBuffer, (buffer) => { customSampleBufferA = buffer; status.innerText = `A: CAPTURED (${(buffer.duration).toFixed(2)}s)`; document.getElementById('instCtrl').value = 'samplerA'; mainState.instrument = 'samplerA'; syncUI(); }); stream.getTracks().forEach(track => track.stop()); }; micMediaRecorder.start(); isMicRecording = true; btn.classList.add('recording'); btn.innerText = '⏹ STOP MIC'; status.innerText = 'LISTENING...'; } catch (err) { status.innerText = 'MIC ERROR'; }
+                } else { if(micMediaRecorder && micMediaRecorder.state !== "inactive") micMediaRecorder.stop(); isMicRecording = false; btn.classList.remove('recording'); btn.innerText = '🎙️ REC MIC (TO A)'; }
             });
 
             if (navigator.requestMIDIAccess) { 
