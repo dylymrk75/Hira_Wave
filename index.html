@@ -70,9 +70,12 @@
         .track-badge-container { display: flex; width: 100%; margin-bottom: 8px; justify-content: space-between; align-items: center; }
         .track-badge { background: var(--accent-pink); color: white; font-weight: 800; font-size: 10px; padding: 5px 8px; border-radius: 4px; text-transform: uppercase; border: 2px solid var(--ink); transition: all 0.2s; font-family: 'Space Grotesk', sans-serif; letter-spacing: 0.5px; }
         .midi-mode-badge { background: var(--screen-bg); color: var(--accent-green); border: 2px solid var(--accent-green); font-size: 9px; font-weight: 800; padding: 5px 8px; border-radius: 4px; font-family: 'JetBrains Mono', monospace; text-transform: uppercase; }
-        .canvas-container { width: 100%; max-width: 100%; display: flex; justify-content: center; align-items: center; position: relative; overflow: hidden; border-radius: 4px; background: #000;}
-        #bgCanvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0; object-fit: fill; }
-        #canvas { display: block; position: relative; width: 100%; height: auto; cursor: pointer; background-color: transparent; border: none; z-index: 1; object-fit: fill; }
+        
+        /* v1.4.3 FIX: Main editor canvas acts as a 16:9 window. 'cover' forces portraits to crop to middle third! */
+        .canvas-container { width: 100%; aspect-ratio: 16 / 9; overflow: hidden; display: flex; justify-content: center; align-items: center; position: relative; border-radius: 4px; background: #000; }
+        #bgCanvas, #canvas { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 100%; height: 100%; pointer-events: auto; z-index: 0; object-fit: cover; object-position: center; }
+        #canvas { z-index: 1; cursor: pointer; background-color: transparent; }
+        
         .timeline-bezel-strip { padding: 10px; background: rgba(255,255,255,0.05); border-radius: 4px; border: 1px solid rgba(255,255,255,0.1); width: 100%; box-sizing: border-box; flex: 1; display: flex; flex-direction: column; justify-content: center;}
         .timeline-header { font-size: 10px; font-weight: 700; text-transform: uppercase; color: #888; width: 100%; display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
         .phase-indicator { color: var(--ink); background: var(--accent-green); padding: 4px 8px; border-radius: 4px; font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 800;}
@@ -145,11 +148,9 @@
         .mode-select-pill { flex: 1; padding: 10px 6px; border: 2px solid var(--ink); border-radius: 8px; background: white; font-family: 'JetBrains Mono', monospace; font-size: 9px; font-weight: 800; cursor: pointer; text-align: center; color: var(--ink); transition: all 0.1s; text-transform: uppercase; }
         .mode-select-pill.active { background: var(--ink); color: var(--accent-green); box-shadow: 0 3px 0 rgba(0,0,0,0.2); }
         
-        /* v1.5 ZEN MODE FIX: Change from cover to contain to respect video aspect ratios */
+        /* v1.4.3 ZEN MODE FIX: Expands the viewport. 'cover' forces landscape to crop left/right to fill phone! */
         #fullscreenWrapper.zen-active { position: fixed !important; top: 0 !important; left: 0 !important; width: 100vw !important; height: 100vh !important; z-index: 999999 !important; border: none !important; margin: 0 !important; padding: 0 !important; display: flex !important; flex-direction: column !important; justify-content: center !important; align-items: center !important; background-color: var(--screen-bg); }
-        #fullscreenWrapper.zen-active .canvas-container { width: 100vw !important; height: 100vh !important; max-width: 100vw !important; margin: 0; padding: 0; display: flex; justify-content: center; align-items: center; }
-        #fullscreenWrapper.zen-active #bgCanvas { width: 100% !important; height: 100% !important; max-width: none !important; object-fit: contain !important; border-radius: 0; border: none; background-color: transparent !important; }
-        #fullscreenWrapper.zen-active #canvas { width: 100% !important; height: 100% !important; max-width: none !important; object-fit: contain !important; border-radius: 0; border: none; background-color: transparent !important; }
+        #fullscreenWrapper.zen-active .canvas-container { width: 100vw !important; height: 100vh !important; aspect-ratio: unset; margin: 0; padding: 0; border-radius: 0; border: none; }
         #fullscreenWrapper.zen-active .canvas-toolbar, #fullscreenWrapper.zen-active .track-badge-container, #fullscreenWrapper.zen-active .transport-area { display: none !important; }
         
         .minimal-controls { display: none; position: absolute; bottom: 35px; left: 50%; transform: translateX(-50%); background: rgba(20, 20, 20, 0.75); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); padding: 8px 16px; border-radius: 40px; border: 1px solid rgba(255,255,255,0.15); gap: 12px; opacity: 1; transition: opacity 0.4s ease; z-index: 1000000; width: max-content; max-width: 95vw; flex-wrap: wrap; justify-content: center; }
@@ -165,7 +166,7 @@
         <!-- HEADER -->
         <div class="hardware-panel" style="padding: 12px 16px; padding-bottom: 12px;">
             <div class="app-header" style="margin-bottom: 8px; padding-bottom: 8px;">
-                <div><h1 class="logo-text">HIRA WAVE STUDIO</h1><div class="logo-sub">GENERATIVE POLYRHYTHMIC SEQUENCER • v1.5</div></div>
+                <div><h1 class="logo-text">HIRA WAVE STUDIO</h1><div class="logo-sub">GENERATIVE POLYRHYTHMIC SEQUENCER • v1.4.4</div></div>
             </div>
             <div class="track-title-row"><label>TITLE:</label><input type="text" id="trackTitleCtrl" class="track-title-input" value="UNTITLED SEQUENCE"></div>
         </div>
@@ -475,7 +476,7 @@
 
         const overlay = document.getElementById('zenInfoOverlay'); const infoBtn = document.getElementById('infoBtn'); const minInfoBtn = document.getElementById('minInfoBtn'); const recTimerText = document.getElementById('recTimer'); const zenRecTimerText = document.getElementById('zenRecTimer');
 
-        let customVideoActive = false; let videoOverlayMode = 1; // 0: OFF, 1: FX ONLY, 2: FULL WASH
+        let customVideoActive = false; let videoOverlayMode = 1; 
         let audioCtx = null; let isPlaying = false; let globalPhaseTime = 0; const FULL_CYCLE_PHASE = 100 * Math.PI; let isScrubbing = false; let audioRecStartTime = 0; let lastFrameTime = performance.now();
         let isZenActive = false; let idleTimer; let focusedSliceId = null; let infoState = 0; let overlayDraggingActive = false; let overlayOffsetX = 0, overlayOffsetY = 0;
 
@@ -540,31 +541,14 @@
             
             if (type === 'brown') {
                 let lastOut = 0; 
-                for (let i = 0; i < bufferSize; i++) { 
-                    let white = Math.random() * 2 - 1; 
-                    output[i] = (lastOut + (0.02 * white)) / 1.02; 
-                    lastOut = output[i]; 
-                    output[i] *= 3.5; 
-                }
+                for (let i = 0; i < bufferSize; i++) { let white = Math.random() * 2 - 1; output[i] = (lastOut + (0.02 * white)) / 1.02; lastOut = output[i]; output[i] *= 3.5; }
             } else if (type === 'pink') {
                 let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
-                for (let i = 0; i < bufferSize; i++) { 
-                    let white = Math.random() * 2 - 1; 
-                    b0 = 0.99886 * b0 + white * 0.0555179; b1 = 0.99332 * b1 + white * 0.0750759; b2 = 0.96900 * b2 + white * 0.1538520; b3 = 0.86650 * b3 + white * 0.3104856; b4 = 0.55000 * b4 + white * 0.5329522; b5 = -0.7616 * b5 - white * 0.0168980; 
-                    output[i] = b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362; output[i] *= 0.11; b6 = white * 0.115926; 
-                }
+                for (let i = 0; i < bufferSize; i++) { let white = Math.random() * 2 - 1; b0 = 0.99886 * b0 + white * 0.0555179; b1 = 0.99332 * b1 + white * 0.0750759; b2 = 0.96900 * b2 + white * 0.1538520; b3 = 0.86650 * b3 + white * 0.3104856; b4 = 0.55000 * b4 + white * 0.5329522; b5 = -0.7616 * b5 - white * 0.0168980; output[i] = b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362; output[i] *= 0.11; b6 = white * 0.115926; }
             } else if (type === 'vinyl') {
-                for (let i = 0; i < bufferSize; i++) { 
-                    if (Math.random() < 0.0003) output[i] = (Math.random() * 2 - 1) * 0.8; 
-                    else output[i] = (Math.random() * 2 - 1) * 0.03; 
-                }
+                for (let i = 0; i < bufferSize; i++) { if (Math.random() < 0.0003) output[i] = (Math.random() * 2 - 1) * 0.8; else output[i] = (Math.random() * 2 - 1) * 0.03; }
             } else if (type === 'crackle') {
-                for (let i = 0; i < bufferSize; i++) { 
-                    let rand = Math.random(); 
-                    if (rand < 0.00005) output[i] = (Math.random() * 2 - 1) * 0.9; 
-                    else if (rand < 0.0005) output[i] = (Math.random() * 2 - 1) * 0.25; 
-                    else output[i] = 0; 
-                }
+                for (let i = 0; i < bufferSize; i++) { let rand = Math.random(); if (rand < 0.00005) output[i] = (Math.random() * 2 - 1) * 0.9; else if (rand < 0.0005) output[i] = (Math.random() * 2 - 1) * 0.25; else output[i] = 0; }
             }
             return buffer;
         }
@@ -609,13 +593,9 @@
                 else pill.classList.remove('active');
             });
             const badge = document.getElementById('midiModeDisplay');
-            if (mode === 'browser') {
-                badge.innerText = 'AUDIO: BROWSER'; badge.style.color = 'var(--accent-green)'; badge.style.borderColor = 'var(--accent-green)';
-            } else if (mode === 'daw') {
-                badge.innerText = 'MIDI: DAW (SILENT)'; badge.style.color = 'var(--accent-pink)'; badge.style.borderColor = 'var(--accent-pink)';
-            } else if (mode === 'hybrid') {
-                badge.innerText = 'MODE: HYBRID'; badge.style.color = 'var(--warning-yellow)'; badge.style.borderColor = 'var(--warning-yellow)';
-            }
+            if (mode === 'browser') { badge.innerText = 'AUDIO: BROWSER'; badge.style.color = 'var(--accent-green)'; badge.style.borderColor = 'var(--accent-green)'; } 
+            else if (mode === 'daw') { badge.innerText = 'MIDI: DAW (SILENT)'; badge.style.color = 'var(--accent-pink)'; badge.style.borderColor = 'var(--accent-pink)'; } 
+            else if (mode === 'hybrid') { badge.innerText = 'MODE: HYBRID'; badge.style.color = 'var(--warning-yellow)'; badge.style.borderColor = 'var(--warning-yellow)'; }
         }
 
         function playNote(p, index, settings, fadeAlpha = 1.0) {
@@ -1025,8 +1005,16 @@
             if (!isLoopMode) { setsToRender.push({ isMain: true, pendulums: mainPendulums, settings: mainState, pathData: { path: customPath, distances: pathDistances, totalLength: totalPathLength }, opacity: 1.0 }); } 
             else { activeSliceIds.forEach(id => { const slice = slicesData.find(s => s.id === id); if(slice) { setsToRender.push({ isMain: false, sliceRef: slice, pendulums: slice.livePendulums, settings: slice.settings, pathData: slice.pathData, opacity: 1.0 }); } }); }
 
-            const cx = canvas.width / 2; const pad = 50 * scaleRatio; let effectiveHeight = canvas.height; let yOffset = 0; if (canvas.height > canvas.width) { effectiveHeight = canvas.width * (1080 / 1920); yOffset = (canvas.height - effectiveHeight) / 2; }
-            const hRange = effectiveHeight - (pad * 2); const baseR = canvas.width * 0.33; const topY = yOffset + pad; const bottomY = yOffset + effectiveHeight - pad; const midY = yOffset + (effectiveHeight / 2);
+            // v1.4.3 FIX: Safe Zone Math - Always perfect 1080x1080 square in the center
+            const safeSize = Math.min(canvas.width, canvas.height);
+            const cx = canvas.width / 2; 
+            const pad = 50 * scaleRatio; 
+            const yOffset = (canvas.height - safeSize) / 2; 
+            const hRange = safeSize - (pad * 2); 
+            const baseR = safeSize * 0.33; 
+            const topY = yOffset + pad; 
+            const bottomY = yOffset + safeSize - pad; 
+            const midY = canvas.height / 2;
 
             setsToRender.forEach(set => {
                 const activeShape = set.settings.shape; const triggerMode = set.settings.triggerMode || 'center'; const path = set.pathData.path; const pDists = set.pathData.distances; const pLen = set.pathData.totalLength; const totalDots = set.pendulums.length;
@@ -1094,7 +1082,7 @@
                             else if (normalizedY <= 0.75) range = baseR;
                             else range = baseR - ((normalizedY - 0.75) / 0.25) * baseR * 0.5;
                         }
-                        px = localCx + (Math.sin(effectivePhase) * range);
+                        px = localCx + (swing * range);
                         
                         let standardTrigger = false; 
                         if (triggerMode === 'wall') { 
@@ -1498,13 +1486,17 @@
             overlay.addEventListener('pointermove', (e) => { if (!overlayDraggingActive) return; let newLeft = e.clientX - overlayOffsetX; let newTop = e.clientY - overlayOffsetY; newLeft = Math.max(0, Math.min(newLeft, window.innerWidth - overlay.offsetWidth)); newTop = Math.max(0, Math.min(newTop, window.innerHeight - overlay.offsetHeight)); overlay.style.bottom = 'auto'; overlay.style.right = 'auto'; overlay.style.left = newLeft + 'px'; overlay.style.top = newTop + 'px'; });
             overlay.addEventListener('pointerup', (e) => { overlayDraggingActive = false; overlay.releasePointerCapture(e.pointerId); });
 
+            // v1.4.3 FIX: Update click coordinate math for Action Safe Zone
             canvas.addEventListener('pointerdown', (e) => {
                 const rect = canvas.getBoundingClientRect(); const scaleX = canvas.width / rect.width; const scaleY = canvas.height / rect.height; const clickX = (e.clientX - rect.left) * scaleX; const clickY = (e.clientY - rect.top) * scaleY;
                 if (canvasMode === 'draw') { customPath.push({x: clickX, y: clickY}); recalculatePath(); return; }
                 if (canvasMode === 'edit') {
                     let closestIndex = -1, minDist = Infinity; const activeSettings = focusedSliceId !== null ? slicesData.find(s => s.id === focusedSliceId).settings : mainState; const activeShape = activeSettings.shape; let targetPendulums = focusedSliceId !== null ? slicesData.find(s => s.id === focusedSliceId).livePendulums : mainPendulums;
-                    const totalDots = targetPendulums.length; const cx = canvas.width / 2; const pad = 50 * scaleRatio; let effectiveHeight = canvas.height; let yOffset = 0; if (canvas.height > canvas.width) { effectiveHeight = canvas.width * (1080 / 1920); yOffset = (canvas.height - effectiveHeight) / 2; }
-                    const hRange = effectiveHeight - (pad * 2); const baseR = canvas.width * 0.33; const topY = yOffset + pad; const bottomY = yOffset + effectiveHeight - pad;
+                    
+                    const safeSize = Math.min(canvas.width, canvas.height);
+                    const totalDots = targetPendulums.length; const cx = canvas.width / 2; const pad = 50 * scaleRatio; 
+                    const yOffset = (canvas.height - safeSize) / 2; const hRange = safeSize - (pad * 2); 
+                    const baseR = safeSize * 0.33; const topY = yOffset + pad; const bottomY = yOffset + safeSize - pad;
                     
                     targetPendulums.forEach((p, index) => {
                         let px, py;
