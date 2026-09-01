@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+    <!DOCTYPE html>
 <html>
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -465,9 +465,11 @@
     </div>
 
     <video id="bgVideo" loop muted playsinline style="position: absolute; width: 1px; height: 1px; opacity: 0.01; pointer-events: none; z-index: -9999;"></video>
-    <script>
+
+        <script>
         const bgVideoElement = document.getElementById('bgVideo'); const canvas = document.getElementById('canvas'); const ctx = canvas.getContext('2d'); const bgCanvas = document.getElementById('bgCanvas'); const bgCtx = bgCanvas.getContext('2d'); const sliceList = document.getElementById('sliceList'); const scrubber = document.getElementById('scrubCtrl');
         
+        // Export Canvas is pre-allocated globally (Memory Leak Fix)
         const exportCanvas = document.createElement('canvas'); exportCanvas.id = 'exportCanvas'; exportCanvas.style.position = 'fixed'; exportCanvas.style.top = '0px'; exportCanvas.style.left = '0px'; exportCanvas.style.width = '10px'; exportCanvas.style.height = '10px'; exportCanvas.style.opacity = '0.01'; exportCanvas.style.pointerEvents = 'none'; exportCanvas.style.zIndex = '-9999'; document.body.appendChild(exportCanvas); const exportCtx = exportCanvas.getContext('2d', { alpha: false });
 
         const overlay = document.getElementById('zenInfoOverlay'); const infoBtn = document.getElementById('infoBtn'); const minInfoBtn = document.getElementById('minInfoBtn'); const recTimerText = document.getElementById('recTimer'); const zenRecTimerText = document.getElementById('zenRecTimer');
@@ -1091,7 +1093,7 @@
                             else if (normalizedY <= 0.75) range = baseR;
                             else range = baseR - ((normalizedY - 0.75) / 0.25) * baseR * 0.5;
                         }
-                        px = localCx + (swing * range);
+                        px = localCx + (Math.sin(effectivePhase) * range);
                         
                         let standardTrigger = false; 
                         if (triggerMode === 'wall') { 
