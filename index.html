@@ -162,7 +162,7 @@
         <!-- HEADER -->
         <div class="hardware-panel" style="padding: 12px 16px; padding-bottom: 12px;">
             <div class="app-header" style="margin-bottom: 8px; padding-bottom: 8px;">
-                <div><h1 class="logo-text">HIRA WAVE STUDIO</h1><div class="logo-sub">GENERATIVE POLYRHYTHMIC SEQUENCER • v1.2</div></div>
+                <div><h1 class="logo-text">HIRA WAVE STUDIO</h1><div class="logo-sub">GENERATIVE POLYRHYTHMIC SEQUENCER • v1.3</div></div>
             </div>
             <div class="track-title-row"><label>TITLE:</label><input type="text" id="trackTitleCtrl" class="track-title-input" value="UNTITLED SEQUENCE"></div>
         </div>
@@ -238,7 +238,6 @@
                     <span id="dotPitchCtrlVal" class="readout" style="color: var(--ink);">0</span>
                     <input type="hidden" id="dotPitchCtrl" min="-12" max="12" step="1" value="0">
                 </label>
-                <!-- NUDGE KNOB -->
                 <label class="param-alm" style="margin-right: 5px;">
                     <div class="knob-container" data-id="dotPhaseCtrl" style="width: 44px; height: 44px; margin-bottom: 4px;"><div class="knob-dial"><div class="knob-line"></div></div></div>
                     <span class="param-title" style="margin-bottom: 2px;">NUDGE</span>
@@ -412,24 +411,34 @@
                 </div>
 
                 <div class="sub-section-label" style="margin-top: 15px;">VIDEO BACKGROUND</div>
-                <div class="sampler-controls">
-                    <button class="sampler-btn" id="uploadVideoBtn">🎞️ UPLOAD .MP4 BACKGROUND</button>
-                    <input type="file" id="videoInput" accept="video/*,.mp4,.mov" style="display:none;">
-                    <button class="sampler-btn" id="clearVideoBtn" style="display:none; color: white; background: var(--ink);">✖ CLEAR</button>
-                    <span class="status-badge" id="videoStatus">NO VIDEO</span>
+                <div class="sampler-controls" style="flex-direction: column; align-items: flex-start;">
+                    <div style="display: flex; gap: 10px; width: 100%; align-items: center;">
+                        <button class="sampler-btn" id="uploadVideoBtn" style="flex:1;">🎞️ UPLOAD .MP4 BACKGROUND</button>
+                        <input type="file" id="videoInput" accept="video/*,.mp4,.mov" style="display:none;">
+                        <button class="sampler-btn" id="clearVideoBtn" style="display:none; color: white; background: var(--ink);">✖ CLEAR</button>
+                    </div>
+                    <span class="status-badge" id="videoStatus" style="width: 100%; text-align: center; margin-top: 5px;">NO VIDEO</span>
                     
-                    <label class="param-alm" id="videoDimContainer" style="display:none; margin-left: 10px;">
-                        <div class="knob-container" data-id="videoDimCtrl" style="width: 36px; height: 36px; margin-bottom: 4px;"><div class="knob-dial"><div class="knob-line"></div></div></div>
-                        <span class="param-title" style="margin: 0 0 2px 0;">DIM</span><span id="videoDimCtrlVal" class="readout" style="color: var(--ink); margin: 0;">30%</span>
-                        <input type="hidden" id="videoDimCtrl" min="0" max="1" step="0.05" value="0.3">
-                    </label>
-                    
-                    <!-- GRAIN KNOB -->
-                    <label class="param-alm" id="videoGrainContainer" style="display:none; margin-left: 10px;">
-                        <div class="knob-container" data-id="videoGrainCtrl" style="width: 36px; height: 36px; margin-bottom: 4px;"><div class="knob-dial"><div class="knob-line"></div></div></div>
-                        <span class="param-title" style="margin: 0 0 2px 0;">GRAIN</span><span id="videoGrainCtrlVal" class="readout" style="color: var(--ink); margin: 0;">30%</span>
-                        <input type="hidden" id="videoGrainCtrl" min="0" max="1" step="0.05" value="0.3">
-                    </label>
+                    <div id="videoExtraControls" style="display:none; flex-direction: column; gap: 10px; width: 100%; margin-top: 10px; border-top: 2px dashed #eee; padding-top: 15px;">
+                        <button class="ambient-pill" id="videoOverlayBtn" data-state="1" style="width: 100%; border-color: var(--ink); color: white; background: var(--ink);">🎨 THEME OVERLAY: FX ONLY</button>
+                        <div class="alm-grid" style="margin-bottom: 0; width: 100%; grid-template-columns: repeat(3, 1fr);">
+                            <label class="param-alm">
+                                <div class="knob-container" data-id="videoDimCtrl" style="width: 40px; height: 40px; margin-bottom: 4px;"><div class="knob-dial"><div class="knob-line"></div></div></div>
+                                <span class="param-title" style="margin: 0 0 2px 0;">DIM</span><span id="videoDimCtrlVal" class="readout" style="color: var(--ink); margin: 0;">30%</span>
+                                <input type="hidden" id="videoDimCtrl" min="0" max="1" step="0.05" value="0.3">
+                            </label>
+                            <label class="param-alm">
+                                <div class="knob-container" data-id="videoGrainCtrl" style="width: 40px; height: 40px; margin-bottom: 4px;"><div class="knob-dial"><div class="knob-line"></div></div></div>
+                                <span class="param-title" style="margin: 0 0 2px 0;">GRAIN</span><span id="videoGrainCtrlVal" class="readout" style="color: var(--ink); margin: 0;">30%</span>
+                                <input type="hidden" id="videoGrainCtrl" min="0" max="1" step="0.05" value="0.3">
+                            </label>
+                            <label class="param-alm" id="videoThemeContainer">
+                                <div class="knob-container" data-id="videoThemeCtrl" style="width: 40px; height: 40px; margin-bottom: 4px;"><div class="knob-dial"><div class="knob-line"></div></div></div>
+                                <span class="param-title" style="margin: 0 0 2px 0;">THEME</span><span id="videoThemeCtrlVal" class="readout" style="color: var(--ink); margin: 0;">70%</span>
+                                <input type="hidden" id="videoThemeCtrl" min="0" max="1" step="0.05" value="0.7">
+                            </label>
+                        </div>
+                    </div>
                 </div>
             </div>
         </details>
@@ -462,7 +471,8 @@
 
         const overlay = document.getElementById('zenInfoOverlay'); const infoBtn = document.getElementById('infoBtn'); const minInfoBtn = document.getElementById('minInfoBtn'); const recTimerText = document.getElementById('recTimer'); const zenRecTimerText = document.getElementById('zenRecTimer');
 
-        let customVideoActive = false; let audioCtx = null; let isPlaying = false; let globalPhaseTime = 0; const FULL_CYCLE_PHASE = 100 * Math.PI; let isScrubbing = false; let audioRecStartTime = 0; let lastFrameTime = performance.now();
+        let customVideoActive = false; let videoOverlayMode = 1; // 0: OFF, 1: FX ONLY, 2: FULL WASH
+        let audioCtx = null; let isPlaying = false; let globalPhaseTime = 0; const FULL_CYCLE_PHASE = 100 * Math.PI; let isScrubbing = false; let audioRecStartTime = 0; let lastFrameTime = performance.now();
         let isZenActive = false; let idleTimer; let focusedSliceId = null; let infoState = 0; let overlayDraggingActive = false; let overlayOffsetX = 0, overlayOffsetY = 0;
 
         let appAudioMode = 'browser'; 
@@ -686,7 +696,7 @@
             if (id === 'speedCtrl') target.innerText = val.toFixed(1) + 'x'; 
             else if (id === 'pitchCtrl' || id === 'dotPitchCtrl') target.innerText = val > 60 ? '+' + (val-60) : (id==='dotPitchCtrl' && val > 0 ? '+' + val : (id==='dotPitchCtrl' ? val : val-60)); 
             else if (id === 'dotPhaseCtrl') target.innerText = val + '°'; 
-            else if (id === 'glitchCtrl' || id === 'delayMixCtrl' || id === 'revMixCtrl' || id === 'tapeWowCtrl' || id === 'fifthMixCtrl' || id === 'videoDimCtrl' || id === 'videoGrainCtrl') target.innerText = Math.round(val*100) + '%'; 
+            else if (id === 'glitchCtrl' || id === 'delayMixCtrl' || id === 'revMixCtrl' || id === 'tapeWowCtrl' || id === 'fifthMixCtrl' || id === 'videoDimCtrl' || id === 'videoGrainCtrl' || id === 'videoThemeCtrl') target.innerText = Math.round(val*100) + '%'; 
             else if (id === 'mixCtrl') target.innerText = Math.round(val*100) + '%'; 
             else if (id === 'filterCtrl') target.innerText = val + 'Hz'; 
             else if (id === 'arraySizeCtrl') target.innerText = val;
@@ -713,7 +723,7 @@
                 for(let j=0; j<d.length; j+=4) { 
                     let v = Math.random() * 255; 
                     d[j] = v; d[j+1] = v; d[j+2] = v; 
-                    d[j+3] = 40; // Heavy analog grit
+                    d[j+3] = 40; 
                 } 
                 cx.putImageData(imgData, 0, 0); 
                 grainFrames.push(c); 
@@ -722,41 +732,40 @@
 
         function forceCanvasWipe() { const t = visualThemes[currentThemeIndex]; ctx.clearRect(0, 0, canvas.width, canvas.height); if(!customVideoActive) { bgCtx.fillStyle = `rgb(${t.bgRGB})`; bgCtx.fillRect(0, 0, bgCanvas.width, bgCanvas.height); } document.getElementById('fullscreenWrapper').style.backgroundColor = `rgb(${t.bgRGB})`; overlay.style.color = `rgb(${t.line})`; overlay.style.textShadow = `0 0 10px rgba(${t.line}, 0.5)`; }
 
-        function drawLinearMorph(targetCtx, w, h, t_time) { let cx = w/2, cy = h/2, angle = t_time * 0.15, radius = Math.max(w, h); let x1 = cx + Math.cos(angle) * radius; let y1 = cy + Math.sin(angle) * radius; let x2 = cx - Math.cos(angle) * radius; let y2 = cy - Math.sin(angle) * radius; let grad = targetCtx.createLinearGradient(x1, y1, x2, y2); grad.addColorStop(0, '#111827'); grad.addColorStop(0.5 + Math.sin(t_time*0.2)*0.2, '#2e1065'); grad.addColorStop(1, '#4c0519'); targetCtx.fillStyle = grad; targetCtx.fillRect(0, 0, w, h); targetCtx.drawImage(grainFrames[Math.floor(t_time * 15) % 4], 0, 0, w, h); }
-        function drawRadialMist(targetCtx, w, h, t_time) { targetCtx.fillStyle = '#050505'; targetCtx.fillRect(0, 0, w, h); const orbs = [ { r: Math.max(w,h)*0.8, x: w/2 + Math.sin(t_time*0.2)*w*0.3, y: h/2 + Math.cos(t_time*0.3)*h*0.3, c1: 'rgba(153, 27, 27, 0.4)', c2: 'rgba(153, 27, 27, 0)' }, { r: Math.max(w,h)*0.9, x: w/2 + Math.cos(t_time*0.15)*w*0.4, y: h/2 + Math.sin(t_time*0.25)*h*0.4, c1: 'rgba(30, 58, 138, 0.4)', c2: 'rgba(30, 58, 138, 0)' }, { r: Math.max(w,h)*0.7, x: w/2 + Math.sin(t_time*0.1)*w*0.2, y: h/2 + Math.cos(t_time*0.4)*h*0.2, c1: 'rgba(88, 28, 135, 0.3)', c2: 'rgba(88, 28, 135, 0)' } ]; targetCtx.globalCompositeOperation = 'screen'; orbs.forEach(o => { let grad = targetCtx.createRadialGradient(o.x, o.y, 0, o.x, o.y, o.r); grad.addColorStop(0, o.c1); grad.addColorStop(1, o.c2); targetCtx.fillStyle = grad; targetCtx.fillRect(0, 0, w, h); }); targetCtx.globalCompositeOperation = 'source-over'; targetCtx.drawImage(grainFrames[Math.floor(t_time * 15) % 4], 0, 0, w, h); }
-        function drawDopamine(targetCtx, w, h, t_time) { targetCtx.fillStyle = '#0f0518'; targetCtx.fillRect(0, 0, w, h); const orbs = [ { r: Math.max(w,h)*0.85, x: w/2 + Math.sin(t_time*0.2)*w*0.3, y: h/2 + Math.cos(t_time*0.15)*h*0.3, c1: 'rgba(255, 51, 153, 0.5)', c2: 'rgba(255, 51, 153, 0)' }, { r: Math.max(w,h)*0.75, x: w/2 + Math.cos(t_time*0.1)*w*0.25, y: h/2 + Math.sin(t_time*0.3)*h*0.35, c1: 'rgba(0, 255, 255, 0.4)', c2: 'rgba(0, 255, 255, 0)' }, { r: Math.max(w,h)*0.9, x: w/2 + Math.sin(t_time*0.15)*w*0.4, y: h/2 + Math.cos(t_time*0.25)*h*0.2, c1: 'rgba(157, 92, 255, 0.4)', c2: 'rgba(157, 92, 255, 0)' } ]; targetCtx.globalCompositeOperation = 'screen'; orbs.forEach(o => { let grad = targetCtx.createRadialGradient(o.x, o.y, 0, o.x, o.y, o.r); grad.addColorStop(0, o.c1); grad.addColorStop(1, o.c2); targetCtx.fillStyle = grad; targetCtx.fillRect(0, 0, w, h); }); targetCtx.globalCompositeOperation = 'source-over'; targetCtx.drawImage(grainFrames[Math.floor(t_time * 15) % 4], 0, 0, w, h); }
-        function drawProphecy(targetCtx, w, h, t_time) { targetCtx.fillStyle = '#110200'; targetCtx.fillRect(0, 0, w, h); let flicker = Math.random() * 0.04 + 0.96; let pulse = Math.sin(t_time * 2) * 0.05 + 1; let cx = w/2 + (Math.random() - 0.5) * 6; let cy = h/2 + (Math.random() - 0.5) * 6; let grad = targetCtx.createRadialGradient(cx, cy, Math.max(w,h) * 0.05, cx, cy, Math.max(w,h) * 0.6 * pulse); grad.addColorStop(0, `rgba(255, 120, 30, ${0.6 * flicker})`); grad.addColorStop(0.4, `rgba(150, 30, 0, ${0.5 * flicker})`); grad.addColorStop(1, 'rgba(0, 0, 0, 0)'); targetCtx.globalCompositeOperation = 'screen'; targetCtx.fillStyle = grad; targetCtx.fillRect(0, 0, w, h); targetCtx.globalCompositeOperation = 'source-over'; targetCtx.drawImage(grainFrames[Math.floor(t_time * 15) % 4], 0, 0, w, h); }
-        function drawSunset(targetCtx, w, h, t_time) { targetCtx.fillStyle = '#0f0214'; targetCtx.fillRect(0, 0, w, h); let pulse = Math.sin(t_time * 1.5) * 0.05 + 1; let cx = w/2; let cy = h/2 + h*0.1; let grad = targetCtx.createRadialGradient(cx, cy, Math.max(w,h) * 0.05, cx, cy, Math.max(w,h) * 0.6 * pulse); grad.addColorStop(0, `rgba(255, 100, 50, 0.8)`); grad.addColorStop(0.4, `rgba(150, 20, 80, 0.6)`); grad.addColorStop(1, 'rgba(0, 0, 0, 0)'); targetCtx.globalCompositeOperation = 'screen'; targetCtx.fillStyle = grad; targetCtx.fillRect(0, 0, w, h); targetCtx.globalCompositeOperation = 'source-over'; targetCtx.drawImage(grainFrames[Math.floor(t_time * 15) % 4], 0, 0, w, h); }
-        function drawDusk(targetCtx, w, h, t_time) { targetCtx.fillStyle = '#050a1f'; targetCtx.fillRect(0, 0, w, h); let pulse = Math.sin(t_time * 1) * 0.05 + 1; let cx = w/2; let cy = h/2; let grad = targetCtx.createRadialGradient(cx, cy, Math.max(w,h) * 0.1, cx, cy, Math.max(w,h) * 0.8 * pulse); grad.addColorStop(0, `rgba(100, 150, 255, 0.4)`); grad.addColorStop(0.5, `rgba(50, 20, 100, 0.3)`); grad.addColorStop(1, 'rgba(0, 0, 0, 0)'); targetCtx.globalCompositeOperation = 'screen'; targetCtx.fillStyle = grad; targetCtx.fillRect(0, 0, w, h); targetCtx.globalCompositeOperation = 'source-over'; targetCtx.drawImage(grainFrames[Math.floor(t_time * 15) % 4], 0, 0, w, h); }
-        function drawUkiyo(targetCtx, w, h, t_time, colors) { 
-            let drift = Math.sin(t_time * 0.2) * h * 0.1; let grad = targetCtx.createLinearGradient(0, -h*0.1 + drift, 0, h*1.1 + drift);
-            colors.forEach((c, i) => { grad.addColorStop(i / (colors.length - 1), c); }); targetCtx.fillStyle = grad; targetCtx.fillRect(0, 0, w, h); 
+        function drawLinearMorph(targetCtx, w, h, t_time, skipBg, skipGrain) { if(!skipBg) { let cx = w/2, cy = h/2, angle = t_time * 0.15, radius = Math.max(w, h); let x1 = cx + Math.cos(angle) * radius; let y1 = cy + Math.sin(angle) * radius; let x2 = cx - Math.cos(angle) * radius; let y2 = cy - Math.sin(angle) * radius; let grad = targetCtx.createLinearGradient(x1, y1, x2, y2); grad.addColorStop(0, '#111827'); grad.addColorStop(0.5 + Math.sin(t_time*0.2)*0.2, '#2e1065'); grad.addColorStop(1, '#4c0519'); targetCtx.fillStyle = grad; targetCtx.fillRect(0, 0, w, h); } if(!skipGrain) targetCtx.drawImage(grainFrames[Math.floor(t_time * 15) % 4], 0, 0, w, h); }
+        function drawRadialMist(targetCtx, w, h, t_time, skipBg, skipGrain) { if(!skipBg) { targetCtx.fillStyle = '#050505'; targetCtx.fillRect(0, 0, w, h); } const orbs = [ { r: Math.max(w,h)*0.8, x: w/2 + Math.sin(t_time*0.2)*w*0.3, y: h/2 + Math.cos(t_time*0.3)*h*0.3, c1: 'rgba(153, 27, 27, 0.4)', c2: 'rgba(153, 27, 27, 0)' }, { r: Math.max(w,h)*0.9, x: w/2 + Math.cos(t_time*0.15)*w*0.4, y: h/2 + Math.sin(t_time*0.25)*h*0.4, c1: 'rgba(30, 58, 138, 0.4)', c2: 'rgba(30, 58, 138, 0)' }, { r: Math.max(w,h)*0.7, x: w/2 + Math.sin(t_time*0.1)*w*0.2, y: h/2 + Math.cos(t_time*0.4)*h*0.2, c1: 'rgba(88, 28, 135, 0.3)', c2: 'rgba(88, 28, 135, 0)' } ]; targetCtx.globalCompositeOperation = 'screen'; orbs.forEach(o => { let grad = targetCtx.createRadialGradient(o.x, o.y, 0, o.x, o.y, o.r); grad.addColorStop(0, o.c1); grad.addColorStop(1, o.c2); targetCtx.fillStyle = grad; targetCtx.fillRect(0, 0, w, h); }); targetCtx.globalCompositeOperation = 'source-over'; if(!skipGrain) targetCtx.drawImage(grainFrames[Math.floor(t_time * 15) % 4], 0, 0, w, h); }
+        function drawDopamine(targetCtx, w, h, t_time, skipBg, skipGrain) { if(!skipBg) { targetCtx.fillStyle = '#0f0518'; targetCtx.fillRect(0, 0, w, h); } const orbs = [ { r: Math.max(w,h)*0.85, x: w/2 + Math.sin(t_time*0.2)*w*0.3, y: h/2 + Math.cos(t_time*0.15)*h*0.3, c1: 'rgba(255, 51, 153, 0.5)', c2: 'rgba(255, 51, 153, 0)' }, { r: Math.max(w,h)*0.75, x: w/2 + Math.cos(t_time*0.1)*w*0.25, y: h/2 + Math.sin(t_time*0.3)*h*0.35, c1: 'rgba(0, 255, 255, 0.4)', c2: 'rgba(0, 255, 255, 0)' }, { r: Math.max(w,h)*0.9, x: w/2 + Math.sin(t_time*0.15)*w*0.4, y: h/2 + Math.cos(t_time*0.25)*h*0.2, c1: 'rgba(157, 92, 255, 0.4)', c2: 'rgba(157, 92, 255, 0)' } ]; targetCtx.globalCompositeOperation = 'screen'; orbs.forEach(o => { let grad = targetCtx.createRadialGradient(o.x, o.y, 0, o.x, o.y, o.r); grad.addColorStop(0, o.c1); grad.addColorStop(1, o.c2); targetCtx.fillStyle = grad; targetCtx.fillRect(0, 0, w, h); }); targetCtx.globalCompositeOperation = 'source-over'; if(!skipGrain) targetCtx.drawImage(grainFrames[Math.floor(t_time * 15) % 4], 0, 0, w, h); }
+        function drawProphecy(targetCtx, w, h, t_time, skipBg, skipGrain) { if(!skipBg) { targetCtx.fillStyle = '#110200'; targetCtx.fillRect(0, 0, w, h); } let flicker = Math.random() * 0.04 + 0.96; let pulse = Math.sin(t_time * 2) * 0.05 + 1; let cx = w/2 + (Math.random() - 0.5) * 6; let cy = h/2 + (Math.random() - 0.5) * 6; let grad = targetCtx.createRadialGradient(cx, cy, Math.max(w,h) * 0.05, cx, cy, Math.max(w,h) * 0.6 * pulse); grad.addColorStop(0, `rgba(255, 120, 30, ${0.6 * flicker})`); grad.addColorStop(0.4, `rgba(150, 30, 0, ${0.5 * flicker})`); grad.addColorStop(1, 'rgba(0, 0, 0, 0)'); targetCtx.globalCompositeOperation = 'screen'; targetCtx.fillStyle = grad; targetCtx.fillRect(0, 0, w, h); targetCtx.globalCompositeOperation = 'source-over'; if(!skipGrain) targetCtx.drawImage(grainFrames[Math.floor(t_time * 15) % 4], 0, 0, w, h); }
+        function drawSunset(targetCtx, w, h, t_time, skipBg, skipGrain) { if(!skipBg) { targetCtx.fillStyle = '#0f0214'; targetCtx.fillRect(0, 0, w, h); } let pulse = Math.sin(t_time * 1.5) * 0.05 + 1; let cx = w/2; let cy = h/2 + h*0.1; let grad = targetCtx.createRadialGradient(cx, cy, Math.max(w,h) * 0.05, cx, cy, Math.max(w,h) * 0.6 * pulse); grad.addColorStop(0, `rgba(255, 100, 50, 0.8)`); grad.addColorStop(0.4, `rgba(150, 20, 80, 0.6)`); grad.addColorStop(1, 'rgba(0, 0, 0, 0)'); targetCtx.globalCompositeOperation = 'screen'; targetCtx.fillStyle = grad; targetCtx.fillRect(0, 0, w, h); targetCtx.globalCompositeOperation = 'source-over'; if(!skipGrain) targetCtx.drawImage(grainFrames[Math.floor(t_time * 15) % 4], 0, 0, w, h); }
+        function drawDusk(targetCtx, w, h, t_time, skipBg, skipGrain) { if(!skipBg) { targetCtx.fillStyle = '#050a1f'; targetCtx.fillRect(0, 0, w, h); } let pulse = Math.sin(t_time * 1) * 0.05 + 1; let cx = w/2; let cy = h/2; let grad = targetCtx.createRadialGradient(cx, cy, Math.max(w,h) * 0.1, cx, cy, Math.max(w,h) * 0.8 * pulse); grad.addColorStop(0, `rgba(100, 150, 255, 0.4)`); grad.addColorStop(0.5, `rgba(50, 20, 100, 0.3)`); grad.addColorStop(1, 'rgba(0, 0, 0, 0)'); targetCtx.globalCompositeOperation = 'screen'; targetCtx.fillStyle = grad; targetCtx.fillRect(0, 0, w, h); targetCtx.globalCompositeOperation = 'source-over'; if(!skipGrain) targetCtx.drawImage(grainFrames[Math.floor(t_time * 15) % 4], 0, 0, w, h); }
+        function drawUkiyo(targetCtx, w, h, t_time, colors, skipBg, skipGrain) { 
+            let drift = Math.sin(t_time * 0.2) * h * 0.1; 
+            if(!skipBg) { let grad = targetCtx.createLinearGradient(0, -h*0.1 + drift, 0, h*1.1 + drift); colors.forEach((c, i) => { grad.addColorStop(i / (colors.length - 1), c); }); targetCtx.fillStyle = grad; targetCtx.fillRect(0, 0, w, h); }
             let orbX = w/2 + Math.cos(t_time * 0.15) * w * 0.2; let orbY = h*0.6 + Math.sin(t_time * 0.2) * h * 0.1; let pulse = Math.sin(t_time * 0.5) * 0.1 + 1; 
             let orbGrad = targetCtx.createRadialGradient(orbX, orbY, 0, orbX, orbY, w * 0.5 * pulse); orbGrad.addColorStop(0, 'rgba(255,255,255,0.2)'); orbGrad.addColorStop(1, 'rgba(255,255,255,0)'); 
             targetCtx.globalCompositeOperation = 'screen'; targetCtx.fillStyle = orbGrad; targetCtx.fillRect(0,0,w,h); 
-            targetCtx.globalCompositeOperation = 'source-over'; targetCtx.drawImage(grainFrames[Math.floor(t_time * 15) % 4], 0, 0, w, h); 
+            targetCtx.globalCompositeOperation = 'source-over'; if(!skipGrain) targetCtx.drawImage(grainFrames[Math.floor(t_time * 15) % 4], 0, 0, w, h); 
         }
-        function drawResonance(tCtx, w, h, t) {
-            let drift = Math.sin(t*0.2)*h*0.1; let grad = tCtx.createLinearGradient(0, h*0.2+drift, 0, h*0.8+drift);
-            grad.addColorStop(0, '#5a9ea8'); grad.addColorStop(0.5, '#f5c9b2'); grad.addColorStop(1, '#e89e9f');
-            tCtx.fillStyle = grad; tCtx.fillRect(0,0,w,h);
-            let pulse = Math.sin(t*1)*0.05 + 1; let sunGrad = tCtx.createRadialGradient(w/2, h/2+drift, 0, w/2, h/2+drift, w*0.4*pulse);
+        function drawResonance(targetCtx, w, h, t_time, skipBg, skipGrain) {
+            let drift = Math.sin(t_time*0.2)*h*0.1; 
+            if(!skipBg) { let grad = targetCtx.createLinearGradient(0, h*0.2+drift, 0, h*0.8+drift); grad.addColorStop(0, '#5a9ea8'); grad.addColorStop(0.5, '#f5c9b2'); grad.addColorStop(1, '#e89e9f'); targetCtx.fillStyle = grad; targetCtx.fillRect(0,0,w,h); }
+            let pulse = Math.sin(t_time*1)*0.05 + 1; let sunGrad = targetCtx.createRadialGradient(w/2, h/2+drift, 0, w/2, h/2+drift, w*0.4*pulse);
             sunGrad.addColorStop(0, 'rgba(255, 240, 200, 0.8)'); sunGrad.addColorStop(0.2, 'rgba(255, 200, 150, 0.4)'); sunGrad.addColorStop(1, 'rgba(255, 200, 150, 0)');
-            tCtx.globalCompositeOperation = 'screen'; tCtx.fillStyle = sunGrad; tCtx.fillRect(0,0,w,h); tCtx.globalCompositeOperation = 'source-over';
-            tCtx.drawImage(grainFrames[Math.floor(t * 15) % 4], 0, 0, w, h); 
+            targetCtx.globalCompositeOperation = 'screen'; targetCtx.fillStyle = sunGrad; targetCtx.fillRect(0,0,w,h); targetCtx.globalCompositeOperation = 'source-over';
+            if(!skipGrain) targetCtx.drawImage(grainFrames[Math.floor(t_time * 15) % 4], 0, 0, w, h); 
         }
-        function drawEclipse(tCtx, w, h, t) {
-            tCtx.fillStyle = '#050505'; tCtx.fillRect(0,0,w,h);
+        function drawEclipse(targetCtx, w, h, t_time, skipBg, skipGrain) {
+            if(!skipBg) { targetCtx.fillStyle = '#050505'; targetCtx.fillRect(0,0,w,h); }
             let cx = w/2, cy = h/2, r = Math.min(w,h)*0.35;
-            let innerGrad = tCtx.createLinearGradient(cx, cy-r, cx, cy+r);
+            let innerGrad = targetCtx.createLinearGradient(cx, cy-r, cx, cy+r);
             innerGrad.addColorStop(0, '#000000'); innerGrad.addColorStop(0.5, '#1a3b85'); innerGrad.addColorStop(1, '#6f3b85');
-            tCtx.beginPath(); tCtx.arc(cx, cy, r*0.98, 0, Math.PI*2); tCtx.fillStyle = innerGrad; tCtx.fill();
-            let orbX = cx + Math.cos(t*0.5)*r*0.1, orbY = cy + Math.sin(t*0.5)*r*0.1;
-            let coronaGrad = tCtx.createRadialGradient(orbX, orbY, r*0.9, orbX, orbY, r*1.3);
+            targetCtx.beginPath(); targetCtx.arc(cx, cy, r*0.98, 0, Math.PI*2); targetCtx.fillStyle = innerGrad; targetCtx.fill();
+            let orbX = cx + Math.cos(t_time*0.5)*r*0.1, orbY = cy + Math.sin(t_time*0.5)*r*0.1;
+            let coronaGrad = targetCtx.createRadialGradient(orbX, orbY, r*0.9, orbX, orbY, r*1.3);
             coronaGrad.addColorStop(0, 'rgba(255, 100, 20, 0.9)'); coronaGrad.addColorStop(0.5, 'rgba(200, 50, 10, 0.4)'); coronaGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
-            tCtx.globalCompositeOperation = 'screen'; tCtx.fillStyle = coronaGrad; tCtx.fillRect(0,0,w,h);
-            tCtx.globalCompositeOperation = 'source-over'; tCtx.beginPath(); tCtx.arc(cx, cy, r*0.95, 0, Math.PI*2); tCtx.fillStyle = '#020202'; tCtx.fill();
-            tCtx.drawImage(grainFrames[Math.floor(t * 15) % 4], 0, 0, w, h); 
+            targetCtx.globalCompositeOperation = 'screen'; targetCtx.fillStyle = coronaGrad; targetCtx.fillRect(0,0,w,h);
+            targetCtx.globalCompositeOperation = 'source-over'; targetCtx.beginPath(); targetCtx.arc(cx, cy, r*0.95, 0, Math.PI*2); targetCtx.fillStyle = '#020202'; targetCtx.fill();
+            if(!skipGrain) targetCtx.drawImage(grainFrames[Math.floor(t_time * 15) % 4], 0, 0, w, h); 
         }
 
         function drawVideoCover(c, vid, cw, ch) { const vw = vid.videoWidth; const vh = vid.videoHeight; if(vw === 0 || vh === 0) return; const scale = Math.max(cw / vw, ch / vh); const w = vw * scale; const h = vh * scale; const x = (cw - w) / 2; const y = (ch - h) / 2; c.drawImage(vid, x, y, w, h); }
@@ -831,7 +840,7 @@
                 paramTitle.innerText = 'SOUND PARAMETERS'; 
                 paramTitle.style.color = 'var(--ink)'; 
             }
-            document.querySelectorAll('.knob-container input').forEach(input => { if(input.id !== 'dotPitchCtrl' && input.id !== 'videoDimCtrl' && input.id !== 'videoGrainCtrl' && input.id !== 'dotPhaseCtrl') input.dispatchEvent(new Event('input')); });
+            document.querySelectorAll('.knob-container input').forEach(input => { if(input.id !== 'dotPitchCtrl' && input.id !== 'videoDimCtrl' && input.id !== 'videoGrainCtrl' && input.id !== 'videoThemeCtrl' && input.id !== 'dotPhaseCtrl') input.dispatchEvent(new Event('input')); });
         }
 
         function focusSlice(id) { focusedSliceId = id; document.querySelectorAll('.edit-btn').forEach(btn => btn.classList.remove('focused-edit-btn')); const li = document.getElementById(`slice-${id}`); if(li) { const btn = li.querySelector('.edit-btn'); if (btn) btn.classList.add('focused-edit-btn'); } syncUI(); document.getElementById('soundParamsPanel').open = true; }
@@ -949,9 +958,35 @@
             if(customVideoActive && bgVideoElement.readyState >= 2) {
                 drawVideoCover(bgCtx, bgVideoElement, bgCanvas.width, bgCanvas.height); 
                 let dimVal = parseFloat(document.getElementById('videoDimCtrl').value) || 0; 
+                bgCtx.globalCompositeOperation = 'source-over';
                 bgCtx.fillStyle = `rgba(0,0,0,${dimVal})`; 
                 bgCtx.fillRect(0, 0, bgCanvas.width, bgCanvas.height); 
                 
+                if (videoOverlayMode > 0) {
+                    let themeAlpha = parseFloat(document.getElementById('videoThemeCtrl').value) || 0;
+                    bgCtx.globalAlpha = themeAlpha;
+                    bgCtx.globalCompositeOperation = videoOverlayMode === 1 ? 'screen' : 'overlay';
+                    
+                    let skipBgColor = (videoOverlayMode === 1);
+                    if (t.animated === 'linear') { drawLinearMorph(bgCtx, bgCanvas.width, bgCanvas.height, t_time, skipBgColor, true); } 
+                    else if (t.animated === 'radial') { drawRadialMist(bgCtx, bgCanvas.width, bgCanvas.height, t_time, skipBgColor, true); } 
+                    else if (t.animated === 'dopamine') { drawDopamine(bgCtx, bgCanvas.width, bgCanvas.height, t_time, skipBgColor, true); }
+                    else if (t.animated === 'prophecy') { drawProphecy(bgCtx, bgCanvas.width, bgCanvas.height, t_time, skipBgColor, true); }
+                    else if (t.animated === 'sunset') { drawSunset(bgCtx, bgCanvas.width, bgCanvas.height, t_time, skipBgColor, true); }
+                    else if (t.animated === 'dusk') { drawDusk(bgCtx, bgCanvas.width, bgCanvas.height, t_time, skipBgColor, true); }
+                    else if (t.animated === 'ukiyoe') { drawUkiyo(bgCtx, bgCanvas.width, bgCanvas.height, t_time, t.colors, skipBgColor, true); }
+                    else if (t.animated === 'resonance') { drawResonance(bgCtx, bgCanvas.width, bgCanvas.height, t_time, skipBgColor, true); }
+                    else if (t.animated === 'eclipse') { drawEclipse(bgCtx, bgCanvas.width, bgCanvas.height, t_time, skipBgColor, true); }
+                    else {
+                        if (videoOverlayMode === 2) {
+                            bgCtx.fillStyle = `rgb(${t.bgRGB})`;
+                            bgCtx.fillRect(0, 0, bgCanvas.width, bgCanvas.height);
+                        }
+                    }
+                    bgCtx.globalAlpha = 1.0;
+                    bgCtx.globalCompositeOperation = 'source-over';
+                }
+
                 let grainVal = parseFloat(document.getElementById('videoGrainCtrl').value) || 0;
                 if(grainVal > 0) {
                     bgCtx.globalAlpha = grainVal;
@@ -959,15 +994,15 @@
                     bgCtx.globalAlpha = 1.0;
                 }
             } else {
-                if (t.animated === 'linear') { drawLinearMorph(bgCtx, bgCanvas.width, bgCanvas.height, t_time); } 
-                else if (t.animated === 'radial') { drawRadialMist(bgCtx, bgCanvas.width, bgCanvas.height, t_time); } 
-                else if (t.animated === 'dopamine') { drawDopamine(bgCtx, bgCanvas.width, bgCanvas.height, t_time); }
-                else if (t.animated === 'prophecy') { drawProphecy(bgCtx, bgCanvas.width, bgCanvas.height, t_time); }
-                else if (t.animated === 'sunset') { drawSunset(bgCtx, bgCanvas.width, bgCanvas.height, t_time); }
-                else if (t.animated === 'dusk') { drawDusk(bgCtx, bgCanvas.width, bgCanvas.height, t_time); }
-                else if (t.animated === 'ukiyoe') { drawUkiyo(bgCtx, bgCanvas.width, bgCanvas.height, t_time, t.colors); }
-                else if (t.animated === 'resonance') { drawResonance(bgCtx, bgCanvas.width, bgCanvas.height, t_time); }
-                else if (t.animated === 'eclipse') { drawEclipse(bgCtx, bgCanvas.width, bgCanvas.height, t_time); }
+                if (t.animated === 'linear') { drawLinearMorph(bgCtx, bgCanvas.width, bgCanvas.height, t_time, false, false); } 
+                else if (t.animated === 'radial') { drawRadialMist(bgCtx, bgCanvas.width, bgCanvas.height, t_time, false, false); } 
+                else if (t.animated === 'dopamine') { drawDopamine(bgCtx, bgCanvas.width, bgCanvas.height, t_time, false, false); }
+                else if (t.animated === 'prophecy') { drawProphecy(bgCtx, bgCanvas.width, bgCanvas.height, t_time, false, false); }
+                else if (t.animated === 'sunset') { drawSunset(bgCtx, bgCanvas.width, bgCanvas.height, t_time, false, false); }
+                else if (t.animated === 'dusk') { drawDusk(bgCtx, bgCanvas.width, bgCanvas.height, t_time, false, false); }
+                else if (t.animated === 'ukiyoe') { drawUkiyo(bgCtx, bgCanvas.width, bgCanvas.height, t_time, t.colors, false, false); }
+                else if (t.animated === 'resonance') { drawResonance(bgCtx, bgCanvas.width, bgCanvas.height, t_time, false, false); }
+                else if (t.animated === 'eclipse') { drawEclipse(bgCtx, bgCanvas.width, bgCanvas.height, t_time, false, false); }
                 else { bgCtx.fillStyle = `rgb(${t.bgRGB})`; bgCtx.fillRect(0, 0, bgCanvas.width, bgCanvas.height); }
             }
 
@@ -1094,23 +1129,50 @@
                 let scaleBg = Math.max(exportCanvas.width / bgCanvas.width, exportCanvas.height / bgCanvas.height); let dwBg = bgCanvas.width * scaleBg; let dhBg = bgCanvas.height * scaleBg; let dxBg = (exportCanvas.width - dwBg) / 2; let dyBg = (exportCanvas.height - dhBg) / 2;
                 let tempBgCvs = document.createElement('canvas'); tempBgCvs.width = bgCanvas.width; tempBgCvs.height = bgCanvas.height; let tempBgCtx = tempBgCvs.getContext('2d');
                 
-                if (t.animated === 'linear') { drawLinearMorph(tempBgCtx, tempBgCvs.width, tempBgCvs.height, t_time); } 
-                else if (t.animated === 'radial') { drawRadialMist(tempBgCtx, tempBgCvs.width, tempBgCvs.height, t_time); } 
-                else if (t.animated === 'dopamine') { drawDopamine(tempBgCtx, tempBgCvs.width, tempBgCvs.height, t_time); }
-                else if (t.animated === 'prophecy') { drawProphecy(tempBgCtx, tempBgCvs.width, tempBgCvs.height, t_time); }
-                else if (t.animated === 'sunset') { drawSunset(tempBgCtx, tempBgCvs.width, tempBgCvs.height, t_time); }
-                else if (t.animated === 'dusk') { drawDusk(tempBgCtx, tempBgCvs.width, tempBgCvs.height, t_time); }
-                else if (t.animated === 'ukiyoe') { drawUkiyo(tempBgCtx, tempBgCvs.width, tempBgCvs.height, t_time, t.colors); }
-                else if (t.animated === 'resonance') { drawResonance(tempBgCtx, tempBgCvs.width, tempBgCvs.height, t_time); }
-                else if (t.animated === 'eclipse') { drawEclipse(tempBgCtx, tempBgCvs.width, tempBgCvs.height, t_time); }
+                if (t.animated === 'linear') { drawLinearMorph(tempBgCtx, tempBgCvs.width, tempBgCvs.height, t_time, false, false); } 
+                else if (t.animated === 'radial') { drawRadialMist(tempBgCtx, tempBgCvs.width, tempBgCvs.height, t_time, false, false); } 
+                else if (t.animated === 'dopamine') { drawDopamine(tempBgCtx, tempBgCvs.width, tempBgCvs.height, t_time, false, false); }
+                else if (t.animated === 'prophecy') { drawProphecy(tempBgCtx, tempBgCvs.width, tempBgCvs.height, t_time, false, false); }
+                else if (t.animated === 'sunset') { drawSunset(tempBgCtx, tempBgCvs.width, tempBgCvs.height, t_time, false, false); }
+                else if (t.animated === 'dusk') { drawDusk(tempBgCtx, tempBgCvs.width, tempBgCvs.height, t_time, false, false); }
+                else if (t.animated === 'ukiyoe') { drawUkiyo(tempBgCtx, tempBgCvs.width, tempBgCvs.height, t_time, t.colors, false, false); }
+                else if (t.animated === 'resonance') { drawResonance(tempBgCtx, tempBgCvs.width, tempBgCvs.height, t_time, false, false); }
+                else if (t.animated === 'eclipse') { drawEclipse(tempBgCtx, tempBgCvs.width, tempBgCvs.height, t_time, false, false); }
                 else { tempBgCtx.fillStyle = `rgb(${t.bgRGB})`; tempBgCtx.fillRect(0, 0, tempBgCvs.width, tempBgCvs.height); }
                 
                 if(customVideoActive && bgVideoElement.readyState >= 2) {
                     drawVideoCover(tempBgCtx, bgVideoElement, tempBgCvs.width, tempBgCvs.height); 
+                    
                     let dimVal = parseFloat(document.getElementById('videoDimCtrl').value) || 0;
+                    tempBgCtx.globalCompositeOperation = 'source-over';
                     tempBgCtx.fillStyle = `rgba(0,0,0,${dimVal})`; 
                     tempBgCtx.fillRect(0, 0, tempBgCvs.width, tempBgCvs.height); 
                     
+                    if (videoOverlayMode > 0) {
+                        let themeAlpha = parseFloat(document.getElementById('videoThemeCtrl').value) || 0;
+                        tempBgCtx.globalAlpha = themeAlpha;
+                        tempBgCtx.globalCompositeOperation = videoOverlayMode === 1 ? 'screen' : 'overlay';
+                        
+                        let skipBgColor = (videoOverlayMode === 1);
+                        if (t.animated === 'linear') { drawLinearMorph(tempBgCtx, tempBgCvs.width, tempBgCvs.height, t_time, skipBgColor, true); } 
+                        else if (t.animated === 'radial') { drawRadialMist(tempBgCtx, tempBgCvs.width, tempBgCvs.height, t_time, skipBgColor, true); } 
+                        else if (t.animated === 'dopamine') { drawDopamine(tempBgCtx, tempBgCvs.width, tempBgCvs.height, t_time, skipBgColor, true); }
+                        else if (t.animated === 'prophecy') { drawProphecy(tempBgCtx, tempBgCvs.width, tempBgCvs.height, t_time, skipBgColor, true); }
+                        else if (t.animated === 'sunset') { drawSunset(tempBgCtx, tempBgCvs.width, tempBgCvs.height, t_time, skipBgColor, true); }
+                        else if (t.animated === 'dusk') { drawDusk(tempBgCtx, tempBgCvs.width, tempBgCvs.height, t_time, skipBgColor, true); }
+                        else if (t.animated === 'ukiyoe') { drawUkiyo(tempBgCtx, tempBgCvs.width, tempBgCvs.height, t_time, t.colors, skipBgColor, true); }
+                        else if (t.animated === 'resonance') { drawResonance(tempBgCtx, tempBgCvs.width, tempBgCvs.height, t_time, skipBgColor, true); }
+                        else if (t.animated === 'eclipse') { drawEclipse(tempBgCtx, tempBgCvs.width, tempBgCvs.height, t_time, skipBgColor, true); }
+                        else {
+                            if (videoOverlayMode === 2) {
+                                tempBgCtx.fillStyle = `rgb(${t.bgRGB})`;
+                                tempBgCtx.fillRect(0, 0, tempBgCvs.width, tempBgCvs.height);
+                            }
+                        }
+                        tempBgCtx.globalAlpha = 1.0;
+                        tempBgCtx.globalCompositeOperation = 'source-over';
+                    }
+
                     let grainVal = parseFloat(document.getElementById('videoGrainCtrl').value) || 0;
                     if(grainVal > 0) {
                         tempBgCtx.globalAlpha = grainVal;
@@ -1196,7 +1258,28 @@
             document.getElementById('shapeCtrl').addEventListener('input', (e) => { if (focusedSliceId !== null) return; mainState.shape = e.target.value; if (!isLoopMode) { customPath = []; recalculatePath(); forceCanvasWipe(); } });
             document.getElementById('triggerModeCtrl').addEventListener('change', (e) => { if (focusedSliceId !== null) return; mainState.triggerMode = e.target.value; });
 
-            const paramDefaults = { 'speedCtrl': 1, 'pitchCtrl': 60, 'mixCtrl': 1.0, 'glitchCtrl': 0, 'delayMixCtrl': 0, 'revMixCtrl': 0, 'filterCtrl': 2000, 'tapeWowCtrl': 0, 'fifthMixCtrl': 0, 'dotPitchCtrl': 0, 'dotPhaseCtrl': 0, 'videoDimCtrl': 0.3, 'videoGrainCtrl': 0.3 };
+            document.getElementById('videoOverlayBtn').addEventListener('click', (e) => {
+                videoOverlayMode = (videoOverlayMode + 1) % 3;
+                const labels = ["OFF", "FX ONLY", "FULL WASH"];
+                e.target.innerText = `🎨 THEME OVERLAY: ${labels[videoOverlayMode]}`;
+                e.target.setAttribute('data-state', videoOverlayMode);
+                
+                if(videoOverlayMode === 0) {
+                    e.target.style.background = 'transparent';
+                    e.target.style.color = 'var(--ink)';
+                    document.getElementById('videoThemeContainer').style.display = 'none';
+                } else if(videoOverlayMode === 1) {
+                    e.target.style.background = 'var(--ink)';
+                    e.target.style.color = 'white';
+                    document.getElementById('videoThemeContainer').style.display = 'flex';
+                } else {
+                    e.target.style.background = 'var(--accent-purple)';
+                    e.target.style.color = 'white';
+                    document.getElementById('videoThemeContainer').style.display = 'flex';
+                }
+            });
+
+            const paramDefaults = { 'speedCtrl': 1, 'pitchCtrl': 60, 'mixCtrl': 1.0, 'glitchCtrl': 0, 'delayMixCtrl': 0, 'revMixCtrl': 0, 'filterCtrl': 2000, 'tapeWowCtrl': 0, 'fifthMixCtrl': 0, 'dotPitchCtrl': 0, 'dotPhaseCtrl': 0, 'videoDimCtrl': 0.3, 'videoGrainCtrl': 0.3, 'videoThemeCtrl': 0.7 };
             Object.keys(paramDefaults).forEach(id => {
                 const el = document.getElementById(id);
                 if(el) {
@@ -1207,7 +1290,8 @@
                         } else if (id === 'dotPhaseCtrl') {
                             if (selectedDotIndex !== -1) { let targetSet = focusedSliceId !== null ? slicesData.find(s => s.id === focusedSliceId).livePendulums : mainPendulums; targetSet[selectedDotIndex].phaseOffset = val * (Math.PI / 180); }
                         } else { 
-                            let targetState = focusedSliceId !== null ? slicesData.find(s => s.id === focusedSliceId).settings : mainState; targetState[id.replace('Ctrl', '')] = val; 
+                            let targetState = focusedSliceId !== null ? slicesData.find(s => s.id === focusedSliceId).settings : mainState; 
+                            if(targetState.hasOwnProperty(id.replace('Ctrl', ''))) targetState[id.replace('Ctrl', '')] = val; 
                         }
                         updateReadout(id, val); if (focusedSliceId !== null && id === 'speedCtrl') updateSliceMeta(focusedSliceId);
                     });
@@ -1219,6 +1303,8 @@
                                  if (id === 'dotPhaseCtrl') targetSet[selectedDotIndex].phaseOffset = paramDefaults[id];
                                  el.value = paramDefaults[id]; updateReadout(id, paramDefaults[id]); el.dispatchEvent(new Event('input')); 
                              }
+                        } else if (id.startsWith('video')) {
+                             el.value = paramDefaults[id]; updateReadout(id, paramDefaults[id]); el.dispatchEvent(new Event('input'));
                         } else { let targetState = focusedSliceId !== null ? slicesData.find(s => s.id === focusedSliceId).settings : mainState; targetState[id.replace('Ctrl', '')] = paramDefaults[id]; syncUI(); if (focusedSliceId !== null && id === 'speedCtrl') updateSliceMeta(focusedSliceId); }
                     });
                 }
@@ -1333,10 +1419,10 @@
                     customVideoActive = true; 
                     document.getElementById('videoStatus').innerText = 'VIDEO ACTIVE'; 
                     document.getElementById('clearVideoBtn').style.display = 'inline-block'; 
-                    document.getElementById('videoDimContainer').style.display = 'flex'; 
-                    document.getElementById('videoGrainContainer').style.display = 'flex'; 
+                    document.getElementById('videoExtraControls').style.display = 'flex'; 
                     document.getElementById('videoDimCtrl').dispatchEvent(new Event('input')); 
                     document.getElementById('videoGrainCtrl').dispatchEvent(new Event('input')); 
+                    document.getElementById('videoThemeCtrl').dispatchEvent(new Event('input')); 
                 }).catch(err => { console.error("Video play failed", err); document.getElementById('videoStatus').innerText = 'PLAY ERROR'; });
             });
 
@@ -1344,8 +1430,7 @@
                 customVideoActive = false; bgVideoElement.pause(); bgVideoElement.src = ""; 
                 document.getElementById('videoStatus').innerText = 'NO VIDEO'; 
                 document.getElementById('clearVideoBtn').style.display = 'none'; 
-                document.getElementById('videoDimContainer').style.display = 'none'; 
-                document.getElementById('videoGrainContainer').style.display = 'none'; 
+                document.getElementById('videoExtraControls').style.display = 'none'; 
                 forceCanvasWipe(); 
             });
 
@@ -1427,5 +1512,3 @@
             initKnobs(); initGrain(bgCanvas.width, bgCanvas.height); forceCanvasWipe(); requestAnimationFrame(draw);
         });
     </script>
-</body>
-</html>
