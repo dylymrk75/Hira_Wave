@@ -1343,3 +1343,953 @@
             initKnobs(); initGrain(bgCanvas.width, bgCanvas.height); forceCanvasWipe(); requestAnimationFrame(draw);
         });
     </script>
+    <script>
+        const bgVideoElement = document.getElementById('bgVideo'); const canvas = document.getElementById('canvas'); const ctx = canvas.getContext('2d'); const bgCanvas = document.getElementById('bgCanvas'); const bgCtx = bgCanvas.getContext('2d'); const sliceList = document.getElementById('sliceList'); const scrubber = document.getElementById('scrubCtrl');
+        
+        const exportCanvas = document.createElement('canvas'); exportCanvas.id = 'exportCanvas'; exportCanvas.style.position = 'fixed'; exportCanvas.style.top = '0px'; exportCanvas.style.left = '0px'; exportCanvas.style.width = '10px'; exportCanvas.style.height = '10px'; exportCanvas.style.opacity = '0.01'; exportCanvas.style.pointerEvents = 'none'; exportCanvas.style.zIndex = '-9999'; document.body.appendChild(exportCanvas); const exportCtx = exportCanvas.getContext('2d', { alpha: false });
+
+        const overlay = document.getElementById('zenInfoOverlay'); const infoBtn = document.getElementById('infoBtn'); const minInfoBtn = document.getElementById('minInfoBtn'); const recTimerText = document.getElementById('recTimer'); const zenRecTimerText = document.getElementById('zenRecTimer');
+
+        let customVideoActive = false; let audioCtx = null; let isPlaying = false; let globalPhaseTime = 0; const FULL_CYCLE_PHASE = 100 * Math.PI; let isScrubbing = false; let audioRecStartTime = 0; let lastFrameTime = performance.now();
+        let isZenActive = false; let idleTimer; let focusedSliceId = null; let infoState = 0; let overlayDraggingActive = false; let overlayOffsetX = 0, overlayOffsetY = 0;
+
+        let appAudioMode = 'browser'; 
+
+        const playIconSvg = '<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>'; const pauseIconSvg = '<svg viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>'; const recIconSvg = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/></svg>'; const stopIconSvg = '<svg viewBox="0 0 24 24"><path d="M6 6h12v12H6z"/></svg>';
+
+        let ambientStates = { sea: 0, rain: 0, vinyl: 0, fire: 0, wind: 0, custom: 0 }; const ambVolLevels = [0, 0.15, 0.35, 0.6]; const ambStateLabels = ['OFF', 'LOW', 'MED', 'MAX']; let ambientGains = { sea: null, rain: null, vinyl: null, fire: null, wind: null, custom: null }; let ambienceInitialized = false;
+        let customAmbienceBuffer = null; let customAmbienceSource = null;
+        
+        let masterGain, streamDest, mediaRecorder; let recordedChunks = []; let isRecordingAudio = false; let globalDelay, delayFilter, delayFeedback, globalReverb; let midiAccess = null, currentMidiOutput = null; 
+        
+        let customSampleBufferA = null, customSampleBufferB = null, customSampleBufferC = null;
+        let isMicRecording = false, micMediaRecorder = null, micChunks = [];
+
+        let slicesData = [], activeSliceIds = [], isLoopMode = false, sliceCount = 1; let canvasMode = 'edit', isPulseEnabled = true, isTetherEnabled = true; let customPath = [], pathDistances = [0], totalPathLength = 0; let currentThemeIndex = 0, trailMode = 0, grainFrames = [];
+
+        let mainState = { instrument: 'harp', arraySize: 15, speed: 1, pitch: 60, filter: 2000, shape: 'v', triggerMode: 'wall', delayMix: 0.0, revMix: 0.0, glitch: 0, tapeWow: 0, fifthMix: 0, mix: 1.0, pitchLock: false, midiChannel: 1 };
+        const sequencePhases = [ { name: "UNISON", threshold: 0.0 }, { name: "SERPENT", threshold: 0.15 }, { name: "CROSSING", threshold: 0.45 }, { name: "CHAOS", threshold: 0.65 }, { name: "RE-ALIGN", threshold: 0.95 } ];
+        const hirajoshiIntervals = [0, 2, 3, 7, 8]; let mainPendulums = []; let selectedDotIndex = -1;
+        for (let i = 0; i < 15; i++) { mainPendulums.push({ phase: 0, frequency: 0.5 + (i * 0.02), lastSide: 1, lastDir: 1, muted: false, pitchShift: 0, phaseOffset: 0, pulse: 0 }); }
+
+        const visualThemes = [
+            { id: 'classic', name: 'CLASSIC', bgRGB: '26, 26, 26', line: '255, 255, 255', getDotColor: (i, total, op) => `hsla(${(i * 360) / total}, 80%, 60%, ${op})` },
+            { id: 'mono', name: 'MONOCHROME', bgRGB: '5, 5, 5', line: '180, 180, 180', getDotColor: (i, total, op) => `rgba(255, 255, 255, ${op})` },
+            { id: 'amber', name: 'AMBER CRT', bgRGB: '15, 8, 0', line: '255, 150, 0', getDotColor: (i, total, op) => `rgba(255, 170, 0, ${op})` },
+            { id: 'resonance', name: 'RESONANCE', bgRGB: '245, 235, 230', line: '40, 30, 30', animated: 'resonance', getDotColor: (i, total, op) => `hsla(${(i * (40/total)) + 220}, 60%, 30%, ${op})` },
+            { id: 'eclipse', name: 'ECLIPSE', bgRGB: '5, 5, 5', line: '255, 150, 50', animated: 'eclipse', getDotColor: (i, total, op) => `hsla(${(i * (60/total)) + 210}, 90%, 65%, ${op})` },
+            { id: 'matrix', name: 'TERMINAL', bgRGB: '0, 15, 0', line: '0, 255, 0', getDotColor: (i, total, op) => `rgba(100, 255, 100, ${op})` },
+            { id: 'tokyo', name: 'NEON TOKYO', bgRGB: '10, 5, 20', line: '0, 255, 255', getDotColor: (i, total, op) => `hsla(${(i * (90/total)) + 300}, 100%, 60%, ${op})` },
+            { id: 'kanto', name: 'KANTO SILK', bgRGB: '17, 24, 39', line: '200, 200, 255', animated: 'linear', getDotColor: (i, total, op) => `hsla(${(i * (60/total)) + 220}, 80%, 75%, ${op})` },
+            { id: 'kansai', name: 'KANSAI MIST', bgRGB: '5, 5, 5', line: '255, 200, 200', animated: 'radial', getDotColor: (i, total, op) => `hsla(${(i * (40/total)) + 340}, 90%, 70%, ${op})` },
+            { id: 'dopamine', name: 'DOPAMINE', bgRGB: '15, 5, 24', line: '0, 255, 255', animated: 'dopamine', getDotColor: (i, total, op) => `hsla(${(i * (80/total)) + 280}, 100%, 70%, ${op})` },
+            { id: 'prophecy', name: 'PROPHECY', bgRGB: '17, 2, 0', line: '255, 230, 150', animated: 'prophecy', getDotColor: (i, total, op) => `hsla(${(i * (40/total)) + 10}, 100%, 65%, ${op})` },
+            { id: 'sunset', name: 'SUNSET', bgRGB: '15, 2, 20', line: '255, 200, 220', animated: 'sunset', getDotColor: (i, total, op) => `hsla(${(i * (60/total)) + 300}, 100%, 75%, ${op})` },
+            { id: 'dusk', name: 'DUSK', bgRGB: '5, 10, 31', line: '180, 220, 255', animated: 'dusk', getDotColor: (i, total, op) => `hsla(${(i * (80/total)) + 180}, 100%, 70%, ${op})` },
+            { id: 'ukiyoe1', name: 'UKIYO 1', bgRGB: '25, 20, 30', line: '20, 30, 60', animated: 'ukiyoe', colors: ['#28a0b9', '#b5cddf', '#36235b', '#e25b3e'], getDotColor: (i, total, op) => `hsla(230, 60%, 15%, ${op})` },
+            { id: 'ukiyoe2', name: 'UKIYO 2', bgRGB: '15, 25, 25', line: '60, 15, 40', animated: 'ukiyoe', colors: ['#176f9d', '#b1dfd3', '#fbe0c3', '#e46c86', '#523468'], getDotColor: (i, total, op) => `hsla(320, 50%, 15%, ${op})` },
+            { id: 'ukiyoe3', name: 'UKIYO 3', bgRGB: '5, 15, 30', line: '10, 30, 45', animated: 'ukiyoe', colors: ['#04264b', '#1f71ad', '#f0f4ec', '#f2d427', '#bc8516'], getDotColor: (i, total, op) => `hsla(200, 70%, 12%, ${op})` }
+        ];
+
+        let selectedDuration = 30, isExportingSnippet = false, isRenderCancelled = false; let snippetMediaRecorder = null, snippetChunks = [], snippetStartTime = 0, snippetTargetMs = 30000; const scaleRatio = 2.7; 
+        const dateObj = new Date(); const monthNames = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+        document.getElementById('zenDateText').innerText = `${dateObj.getDate()} ${monthNames[dateObj.getMonth()]} ${dateObj.getFullYear()}`;
+        document.getElementById('trackTitleCtrl').addEventListener('input', (e) => { document.getElementById('zenTitleText').innerText = e.target.value || 'UNTITLED SEQUENCE'; });
+
+        function getAmbIcon(type) { if(type === 'sea') return '🌊'; if(type === 'rain') return '🌧️'; if(type === 'vinyl') return '📻'; if(type === 'fire') return '🔥'; if(type === 'wind') return '🌾'; if(type === 'custom') return '🎵'; return ''; }
+        function midiToFreq(midi) { return 440 * Math.pow(2, (midi - 69) / 12); }
+
+        function generateReverbIR() {
+            if (!audioCtx) return; const sr = audioCtx.sampleRate; const len = sr * 3; const imp = audioCtx.createBuffer(2, len, sr);
+            const L = imp.getChannelData(0); const R = imp.getChannelData(1); let lastL = 0, lastR = 0;
+            for (let i = 0; i < len; i++) { const dec = Math.exp(-i / (sr * 1.0)); lastL = lastL + 0.05 * ((Math.random() * 2 - 1) * dec - lastL); lastR = lastR + 0.05 * ((Math.random() * 2 - 1) * dec - lastR); L[i] = lastL; R[i] = lastR; }
+            globalReverb.buffer = imp;
+        }
+
+        function createNoiseBuffer(ctx, type) {
+            let length = (type === 'crackle') ? 16 : 4;
+            const bufferSize = ctx.sampleRate * length; 
+            const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate); 
+            const output = buffer.getChannelData(0);
+            
+            if (type === 'brown') {
+                let lastOut = 0; 
+                for (let i = 0; i < bufferSize; i++) { 
+                    let white = Math.random() * 2 - 1; 
+                    output[i] = (lastOut + (0.02 * white)) / 1.02; 
+                    lastOut = output[i]; 
+                    output[i] *= 3.5; 
+                }
+            } else if (type === 'pink') {
+                let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
+                for (let i = 0; i < bufferSize; i++) { 
+                    let white = Math.random() * 2 - 1; 
+                    b0 = 0.99886 * b0 + white * 0.0555179; b1 = 0.99332 * b1 + white * 0.0750759; b2 = 0.96900 * b2 + white * 0.1538520; b3 = 0.86650 * b3 + white * 0.3104856; b4 = 0.55000 * b4 + white * 0.5329522; b5 = -0.7616 * b5 - white * 0.0168980; 
+                    output[i] = b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362; output[i] *= 0.11; b6 = white * 0.115926; 
+                }
+            } else if (type === 'vinyl') {
+                for (let i = 0; i < bufferSize; i++) { 
+                    if (Math.random() < 0.0003) output[i] = (Math.random() * 2 - 1) * 0.8; 
+                    else output[i] = (Math.random() * 2 - 1) * 0.03; 
+                }
+            } else if (type === 'crackle') {
+                for (let i = 0; i < bufferSize; i++) { 
+                    let rand = Math.random(); 
+                    if (rand < 0.00005) output[i] = (Math.random() * 2 - 1) * 0.9; 
+                    else if (rand < 0.0005) output[i] = (Math.random() * 2 - 1) * 0.25; 
+                    else output[i] = 0; 
+                }
+            }
+            return buffer;
+        }
+
+        function initAmbience() {
+            if (ambienceInitialized || !audioCtx) return;
+            const seaSrc = audioCtx.createBufferSource(); seaSrc.buffer = createNoiseBuffer(audioCtx, 'brown'); seaSrc.loop = true; const seaFilter = audioCtx.createBiquadFilter(); seaFilter.type = 'lowpass'; seaFilter.frequency.value = 800; const seaMasterGain = audioCtx.createGain(); seaMasterGain.gain.value = ambVolLevels[ambientStates.sea]; const seaLfoGain = audioCtx.createGain(); seaLfoGain.gain.value = 0.5; const seaLFO = audioCtx.createOscillator(); seaLFO.type = 'sine'; seaLFO.frequency.value = 0.08; const seaLFOScale = audioCtx.createGain(); seaLFOScale.gain.value = 0.5; seaLFO.connect(seaLFOScale); seaLFOScale.connect(seaLfoGain.gain); seaSrc.connect(seaFilter); seaFilter.connect(seaLfoGain); seaLfoGain.connect(seaMasterGain); seaMasterGain.connect(masterGain); seaSrc.start(); seaLFO.start(); ambientGains.sea = seaMasterGain;
+            const rainSrc = audioCtx.createBufferSource(); rainSrc.buffer = createNoiseBuffer(audioCtx, 'pink'); rainSrc.loop = true; const rainFilter1 = audioCtx.createBiquadFilter(); rainFilter1.type = 'lowpass'; rainFilter1.frequency.value = 1200; const rainFilter2 = audioCtx.createBiquadFilter(); rainFilter2.type = 'highpass'; rainFilter2.frequency.value = 300; const rainGainNode = audioCtx.createGain(); rainGainNode.gain.value = ambVolLevels[ambientStates.rain]; rainSrc.connect(rainFilter1); rainFilter1.connect(rainFilter2); rainFilter2.connect(rainGainNode); rainGainNode.connect(masterGain); rainSrc.start(); ambientGains.rain = rainGainNode;
+            const vinylSrc = audioCtx.createBufferSource(); vinylSrc.buffer = createNoiseBuffer(audioCtx, 'vinyl'); vinylSrc.loop = true; const vinylFilter = audioCtx.createBiquadFilter(); vinylFilter.type = 'highpass'; vinylFilter.frequency.value = 600; const vinylGainNode = audioCtx.createGain(); vinylGainNode.gain.value = ambVolLevels[ambientStates.vinyl]; vinylSrc.connect(vinylFilter); vinylFilter.connect(vinylGainNode); vinylGainNode.connect(masterGain); vinylSrc.start(); ambientGains.vinyl = vinylGainNode;
+            
+            const fS1 = audioCtx.createBufferSource(); fS1.buffer = createNoiseBuffer(audioCtx, 'brown'); fS1.loop = true;
+            const fS2 = audioCtx.createBufferSource(); fS2.buffer = createNoiseBuffer(audioCtx, 'crackle'); fS2.loop = true;
+            const fF1 = audioCtx.createBiquadFilter(); fF1.type = 'lowpass'; fF1.frequency.value = 200; 
+            const fF2 = audioCtx.createBiquadFilter(); fF2.type = 'highpass'; fF2.frequency.value = 1000;
+            const fM = audioCtx.createGain(); fM.gain.value = ambVolLevels[ambientStates.fire];
+            fS1.connect(fF1); fF1.connect(fM); fS2.connect(fF2); fF2.connect(fM); fM.connect(masterGain); fS1.start(); fS2.start(); ambientGains.fire = fM;
+
+            const wS = audioCtx.createBufferSource(); wS.buffer = createNoiseBuffer(audioCtx, 'brown'); wS.loop = true;
+            const wF = audioCtx.createBiquadFilter(); wF.type = 'bandpass'; wF.frequency.value = 150; wF.Q.value = 1.5;
+            const wLFO = audioCtx.createOscillator(); wLFO.type = 'sine'; wLFO.frequency.value = 0.02; 
+            const wLFOScale = audioCtx.createGain(); wLFOScale.gain.value = 100; 
+            wLFO.connect(wLFOScale); wLFOScale.connect(wF.frequency);
+            const wM = audioCtx.createGain(); wM.gain.value = ambVolLevels[ambientStates.wind];
+            wS.connect(wF); wF.connect(wM); wM.connect(masterGain); wS.start(); wLFO.start(); ambientGains.wind = wM;
+
+            ambienceInitialized = true;
+        }
+
+        function initAudio() {
+            if (audioCtx) return; const AudioContext = window.AudioContext || window.webkitAudioContext; if (!AudioContext) { alert("Web Audio API not supported."); return; } audioCtx = new AudioContext();
+            const compressor = audioCtx.createDynamicsCompressor(); compressor.threshold.value = -12; compressor.knee.value = 10; compressor.ratio.value = 12; compressor.attack.value = 0.005; compressor.release.value = 0.1;
+            masterGain = audioCtx.createGain(); masterGain.gain.value = 0.8; masterGain.connect(compressor); compressor.connect(audioCtx.destination); streamDest = audioCtx.createMediaStreamDestination(); compressor.connect(streamDest);
+            try { mediaRecorder = new MediaRecorder(streamDest.stream); mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) recordedChunks.push(e.data); }; mediaRecorder.onstop = () => { const type = mediaRecorder.mimeType || 'audio/webm'; const blob = new Blob(recordedChunks, { type: type }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.style.display = 'none'; a.href = url; const ext = type.includes('mp4') ? 'm4a' : 'webm'; a.download = `HIRA-WAVE-master.${ext}`; document.body.appendChild(a); a.click(); window.URL.revokeObjectURL(url); recordedChunks = []; }; } catch (err) { console.warn("MediaRecorder failed:", err); mediaRecorder = null; }
+            globalDelay = audioCtx.createDelay(2.0); globalDelay.delayTime.value = 0.35; delayFilter = audioCtx.createBiquadFilter(); delayFilter.type = 'lowpass'; delayFilter.frequency.value = 1500; delayFeedback = audioCtx.createGain(); delayFeedback.gain.value = 0.4; globalDelay.connect(delayFilter); delayFilter.connect(delayFeedback); delayFeedback.connect(globalDelay); delayFilter.connect(masterGain); 
+            globalReverb = audioCtx.createConvolver(); generateReverbIR(); globalReverb.connect(masterGain); initAmbience();
+        }
+
+        function setAppMode(mode) {
+            appAudioMode = mode;
+            document.querySelectorAll('.mode-select-pill').forEach(pill => {
+                if(pill.getAttribute('data-mode') === mode) pill.classList.add('active');
+                else pill.classList.remove('active');
+            });
+            const badge = document.getElementById('midiModeDisplay');
+            if (mode === 'browser') {
+                badge.innerText = 'AUDIO: BROWSER'; badge.style.color = 'var(--accent-green)'; badge.style.borderColor = 'var(--accent-green)';
+            } else if (mode === 'daw') {
+                badge.innerText = 'MIDI: DAW (SILENT)'; badge.style.color = 'var(--accent-pink)'; badge.style.borderColor = 'var(--accent-pink)';
+            } else if (mode === 'hybrid') {
+                badge.innerText = 'MODE: HYBRID'; badge.style.color = 'var(--warning-yellow)'; badge.style.borderColor = 'var(--warning-yellow)';
+            }
+        }
+
+        function playNote(p, index, settings, fadeAlpha = 1.0) {
+            if (p.muted) return; const octave = Math.floor(index / 5); const scaleDegree = index % 5;
+            let midiNote = settings.pitchLock ? 60 + p.pitchShift : settings.pitch + (octave * 12) + hirajoshiIntervals[scaleDegree] + p.pitchShift;
+            const glitchProb = settings.glitch; if (glitchProb > 0 && Math.random() < glitchProb) { const glitchRoll = Math.random(); if (glitchRoll < 0.4) return; else if (glitchRoll < 0.7) midiNote += 12; else midiNote += 7; }
+            
+            while(midiNote > 127) midiNote -= 12; while(midiNote < 0) midiNote += 12;
+
+            const targetMidiChannel = Math.max(1, Math.min(16, parseInt(settings.midiChannel) || 1));
+            const chIndex = targetMidiChannel - 1;
+            if (currentMidiOutput && (appAudioMode === 'daw' || appAudioMode === 'hybrid')) {
+                currentMidiOutput.send([0x90 | (chIndex & 0x0F), midiNote, 100]);
+                currentMidiOutput.send([0x80 | (chIndex & 0x0F), midiNote, 0], window.performance.now() + 1500);
+            }
+
+            if (audioCtx && (appAudioMode === 'browser' || appAudioMode === 'hybrid')) {
+                const now = audioCtx.currentTime; const wowWobbleCents = Math.sin(now * 2.5) * (settings.tapeWow * 150); const dSend = audioCtx.createGain(); dSend.gain.setValueAtTime(settings.delayMix, now); const rSend = audioCtx.createGain(); rSend.gain.setValueAtTime(settings.revMix, now); const currentMixVolume = (settings.mix !== undefined ? settings.mix : 1.0) * fadeAlpha;
+                
+                if (settings.instrument.startsWith('sampler')) {
+                    const playSample = (noteOffset, volMultiplier) => {
+                        let activeBuffer = null;
+                        if(settings.instrument === 'samplerA') activeBuffer = customSampleBufferA;
+                        else if(settings.instrument === 'samplerB') activeBuffer = customSampleBufferB;
+                        else if(settings.instrument === 'samplerC') activeBuffer = customSampleBufferC;
+
+                        if (!activeBuffer) return; 
+                        const source = audioCtx.createBufferSource(); source.buffer = activeBuffer; 
+                        const baseRate = Math.pow(2, ((midiNote + noteOffset) - 60) / 12); 
+                        source.playbackRate.value = baseRate * Math.pow(2, wowWobbleCents / 1200); 
+                        const filter = audioCtx.createBiquadFilter(); filter.type = 'lowpass'; filter.frequency.value = settings.filter; 
+                        const noteGain = audioCtx.createGain(); let peakVol = Math.max(0.0001, (1.0 * volMultiplier) * currentMixVolume); 
+                        noteGain.gain.setValueAtTime(0, now); noteGain.gain.linearRampToValueAtTime(peakVol, now + 0.01); 
+                        source.connect(filter); filter.connect(noteGain); noteGain.connect(masterGain); noteGain.connect(dSend); dSend.connect(globalDelay); noteGain.connect(rSend); rSend.connect(globalReverb); 
+                        source.start(now);
+                    }; 
+                    playSample(0, 1); if (settings.fifthMix > 0) playSample(7, settings.fifthMix); 
+                    return; 
+                }
+                
+                let oscType = 'triangle', attackTime = 0.02, decayTime = 1.5, currentFilter = settings.filter;
+                switch (settings.instrument) { 
+                    case 'piano': attackTime = 0.005; decayTime = 2.5; break; 
+                    case 'harp': attackTime = 0.025; decayTime = 1.5; break; 
+                    case 'glockenspiel': oscType = 'sine'; attackTime = 0.001; decayTime = 1.0; midiNote += 12; break; 
+                    case 'chiptune': oscType = 'square'; attackTime = 0.01; decayTime = 0.8; currentFilter = Math.min(currentFilter, 3000); break; 
+                    case 'marimba': oscType = 'sine'; attackTime = 0.001; decayTime = 0.8; break; 
+                    case 'synthbass': oscType = 'sawtooth'; attackTime = 0.02; decayTime = 0.8; midiNote -= 12; currentFilter = Math.min(currentFilter, 1000); break; 
+                    case 'koto': oscType = 'sawtooth'; attackTime = 0.01; decayTime = 0.8; currentFilter = Math.min(currentFilter, 2500); break;
+                    case 'hexpad': oscType = 'sawtooth'; attackTime = 0.4; decayTime = 3.5; currentFilter = Math.min(currentFilter, 800); break;
+                    case 'epiano': oscType = 'sine'; attackTime = 0.005; decayTime = 2.5; currentFilter = Math.min(currentFilter, 1200); break;
+                    case 'fmbell': oscType = 'sine'; attackTime = 0.005; decayTime = 2.5; break;
+                }
+                const createOsc = (noteOffset, volMultiplier) => {
+                    const osc = audioCtx.createOscillator(); const filter = audioCtx.createBiquadFilter(); const noteGain = audioCtx.createGain(); 
+                    const baseFreq = midiToFreq(midiNote + noteOffset);
+                    osc.type = oscType; osc.frequency.value = baseFreq; osc.detune.value = wowWobbleCents; 
+                    filter.type = 'lowpass'; filter.frequency.value = currentFilter; 
+                    let peakVol = Math.max(0.0001, (0.5 * volMultiplier) * currentMixVolume); 
+                    noteGain.gain.setValueAtTime(0, now); noteGain.gain.linearRampToValueAtTime(peakVol, now + attackTime); noteGain.gain.exponentialRampToValueAtTime(0.0001, now + decayTime);
+                    
+                    if (settings.instrument === 'fmbell') {
+                        const mod = audioCtx.createOscillator(); const modGain = audioCtx.createGain(); mod.type = 'sine'; mod.frequency.value = baseFreq * 2.01; 
+                        modGain.gain.setValueAtTime(baseFreq * 1.5, now); modGain.gain.exponentialRampToValueAtTime(0.01, now + decayTime * 0.5); 
+                        mod.connect(modGain); modGain.connect(osc.frequency); mod.start(now); mod.stop(now + decayTime);
+                    } else if (settings.instrument === 'epiano') {
+                        const mod = audioCtx.createOscillator(); const modGain = audioCtx.createGain(); mod.type = 'sine'; mod.frequency.value = baseFreq * 4.0; 
+                        modGain.gain.setValueAtTime(baseFreq * 2.0, now); modGain.gain.exponentialRampToValueAtTime(0.01, now + 0.3); 
+                        mod.connect(modGain); modGain.connect(osc.frequency); mod.start(now); mod.stop(now + decayTime);
+                    }
+                    if (settings.instrument === 'koto') { filter.type = 'bandpass'; filter.Q.value = 1.5; }
+
+                    osc.connect(filter); filter.connect(noteGain); noteGain.connect(masterGain); noteGain.connect(dSend); dSend.connect(globalDelay); noteGain.connect(rSend); rSend.connect(globalReverb); osc.start(now); osc.stop(now + decayTime);
+                }; createOsc(0, 1); if (settings.fifthMix > 0) createOsc(7, settings.fifthMix);
+            }
+        }
+
+        function formatTimeMs(ms) { let mins = Math.floor(ms / 60000); let secs = Math.floor((ms % 60000) / 1000); let millis = Math.floor((ms % 1000) / 10); return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}.${millis.toString().padStart(2, '0')}`; }
+
+        function updateReadout(id, val) {
+            const target = document.getElementById(id + 'Val'); if (!target) return;
+            if (id === 'speedCtrl') target.innerText = val.toFixed(1) + 'x'; else if (id === 'pitchCtrl' || id === 'dotPitchCtrl') target.innerText = val > 60 ? '+' + (val-60) : (id==='dotPitchCtrl' && val > 0 ? '+' + val : (id==='dotPitchCtrl' ? val : val-60)); else if (id === 'dotPhaseCtrl') target.innerText = val + '°'; else if (id === 'glitchCtrl' || id === 'delayMixCtrl' || id === 'revMixCtrl' || id === 'tapeWowCtrl' || id === 'fifthMixCtrl' || id === 'videoDimCtrl' || id === 'videoGrainCtrl') target.innerText = Math.round(val*100) + '%'; else if (id === 'mixCtrl') target.innerText = Math.round(val*100) + '%'; else if (id === 'filterCtrl') target.innerText = val + 'Hz'; else if (id === 'arraySizeCtrl') target.innerText = val;
+        }
+
+        function cycleInfo() {
+            infoState = (infoState + 1) % 4; overlay.classList.remove('info-size-1', 'info-size-2', 'info-size-3', 'zen-info-hidden'); overlay.style.top = 'auto'; overlay.style.left = 'auto'; overlay.style.bottom = '20px'; overlay.style.right = '20px';
+            if (infoState === 0) { overlay.classList.add('zen-info-hidden'); infoBtn.innerText = '🎫 OFF'; minInfoBtn.innerText = '🎫 INFO: OFF'; infoBtn.classList.remove('active'); } else { overlay.classList.add(`info-size-${infoState}`); infoBtn.innerText = `🎫 SIZE ${infoState}`; minInfoBtn.innerText = `🎫 INFO: SIZE ${infoState}`; infoBtn.classList.add('active'); }
+        }
+
+        function cycleTheme() { currentThemeIndex = (currentThemeIndex + 1) % visualThemes.length; const t = visualThemes[currentThemeIndex]; document.getElementById('themeBtn').innerText = `🎨 ${t.name}`; document.getElementById('minThemeBtn').innerText = `🎨 THEME: ${t.name}`; forceCanvasWipe(); }
+        function cycleTrails() { trailMode = (trailMode + 1) % 3; const labels = ['OFF', 'SUBTLE', 'LONG']; document.getElementById('trailBtn').innerText = `☄️ ${labels[trailMode]}`; document.getElementById('minTrailBtn').innerText = `☄️ TRAILS: ${labels[trailMode]}`; }
+
+        function initGrain(w, h) { let size = Math.max(w, h); if(grainFrames.length > 0 && grainFrames[0].width === size) return; grainFrames = []; for(let i=0; i<4; i++) { let c = document.createElement('canvas'); c.width = size; c.height = size; let cx = c.getContext('2d'); let imgData = cx.createImageData(size, size); let d = imgData.data; for(let j=0; j<d.length; j+=4) { let v = Math.random() * 255; d[j] = v; d[j+1] = v; d[j+2] = v; d[j+3] = 25; } cx.putImageData(imgData, 0, 0); grainFrames.push(c); } }
+
+        function forceCanvasWipe() { const t = visualThemes[currentThemeIndex]; ctx.clearRect(0, 0, canvas.width, canvas.height); if(!customVideoActive) { bgCtx.fillStyle = `rgb(${t.bgRGB})`; bgCtx.fillRect(0, 0, bgCanvas.width, bgCanvas.height); } document.getElementById('fullscreenWrapper').style.backgroundColor = `rgb(${t.bgRGB})`; overlay.style.color = `rgb(${t.line})`; overlay.style.textShadow = `0 0 10px rgba(${t.line}, 0.5)`; }
+
+        function drawLinearMorph(targetCtx, w, h, t_time) { let cx = w/2, cy = h/2, angle = t_time * 0.15, radius = Math.max(w, h); let x1 = cx + Math.cos(angle) * radius; let y1 = cy + Math.sin(angle) * radius; let x2 = cx - Math.cos(angle) * radius; let y2 = cy - Math.sin(angle) * radius; let grad = targetCtx.createLinearGradient(x1, y1, x2, y2); grad.addColorStop(0, '#111827'); grad.addColorStop(0.5 + Math.sin(t_time*0.2)*0.2, '#2e1065'); grad.addColorStop(1, '#4c0519'); targetCtx.fillStyle = grad; targetCtx.fillRect(0, 0, w, h); targetCtx.drawImage(grainFrames[Math.floor(t_time * 15) % 4], 0, 0, w, h); }
+        function drawRadialMist(targetCtx, w, h, t_time) { targetCtx.fillStyle = '#050505'; targetCtx.fillRect(0, 0, w, h); const orbs = [ { r: Math.max(w,h)*0.8, x: w/2 + Math.sin(t_time*0.2)*w*0.3, y: h/2 + Math.cos(t_time*0.3)*h*0.3, c1: 'rgba(153, 27, 27, 0.4)', c2: 'rgba(153, 27, 27, 0)' }, { r: Math.max(w,h)*0.9, x: w/2 + Math.cos(t_time*0.15)*w*0.4, y: h/2 + Math.sin(t_time*0.25)*h*0.4, c1: 'rgba(30, 58, 138, 0.4)', c2: 'rgba(30, 58, 138, 0)' }, { r: Math.max(w,h)*0.7, x: w/2 + Math.sin(t_time*0.1)*w*0.2, y: h/2 + Math.cos(t_time*0.4)*h*0.2, c1: 'rgba(88, 28, 135, 0.3)', c2: 'rgba(88, 28, 135, 0)' } ]; targetCtx.globalCompositeOperation = 'screen'; orbs.forEach(o => { let grad = targetCtx.createRadialGradient(o.x, o.y, 0, o.x, o.y, o.r); grad.addColorStop(0, o.c1); grad.addColorStop(1, o.c2); targetCtx.fillStyle = grad; targetCtx.fillRect(0, 0, w, h); }); targetCtx.globalCompositeOperation = 'source-over'; targetCtx.drawImage(grainFrames[Math.floor(t_time * 15) % 4], 0, 0, w, h); }
+        function drawDopamine(targetCtx, w, h, t_time) { targetCtx.fillStyle = '#0f0518'; targetCtx.fillRect(0, 0, w, h); const orbs = [ { r: Math.max(w,h)*0.85, x: w/2 + Math.sin(t_time*0.2)*w*0.3, y: h/2 + Math.cos(t_time*0.15)*h*0.3, c1: 'rgba(255, 51, 153, 0.5)', c2: 'rgba(255, 51, 153, 0)' }, { r: Math.max(w,h)*0.75, x: w/2 + Math.cos(t_time*0.1)*w*0.25, y: h/2 + Math.sin(t_time*0.3)*h*0.35, c1: 'rgba(0, 255, 255, 0.4)', c2: 'rgba(0, 255, 255, 0)' }, { r: Math.max(w,h)*0.9, x: w/2 + Math.sin(t_time*0.15)*w*0.4, y: h/2 + Math.cos(t_time*0.25)*h*0.2, c1: 'rgba(157, 92, 255, 0.4)', c2: 'rgba(157, 92, 255, 0)' } ]; targetCtx.globalCompositeOperation = 'screen'; orbs.forEach(o => { let grad = targetCtx.createRadialGradient(o.x, o.y, 0, o.x, o.y, o.r); grad.addColorStop(0, o.c1); grad.addColorStop(1, o.c2); targetCtx.fillStyle = grad; targetCtx.fillRect(0, 0, w, h); }); targetCtx.globalCompositeOperation = 'source-over'; targetCtx.drawImage(grainFrames[Math.floor(t_time * 15) % 4], 0, 0, w, h); }
+        function drawProphecy(targetCtx, w, h, t_time) { targetCtx.fillStyle = '#110200'; targetCtx.fillRect(0, 0, w, h); let flicker = Math.random() * 0.04 + 0.96; let pulse = Math.sin(t_time * 2) * 0.05 + 1; let cx = w/2 + (Math.random() - 0.5) * 6; let cy = h/2 + (Math.random() - 0.5) * 6; let grad = targetCtx.createRadialGradient(cx, cy, Math.max(w,h) * 0.05, cx, cy, Math.max(w,h) * 0.6 * pulse); grad.addColorStop(0, `rgba(255, 120, 30, ${0.6 * flicker})`); grad.addColorStop(0.4, `rgba(150, 30, 0, ${0.5 * flicker})`); grad.addColorStop(1, 'rgba(0, 0, 0, 0)'); targetCtx.globalCompositeOperation = 'screen'; targetCtx.fillStyle = grad; targetCtx.fillRect(0, 0, w, h); targetCtx.globalCompositeOperation = 'source-over'; targetCtx.drawImage(grainFrames[Math.floor(t_time * 15) % 4], 0, 0, w, h); }
+        function drawSunset(targetCtx, w, h, t_time) { targetCtx.fillStyle = '#0f0214'; targetCtx.fillRect(0, 0, w, h); let pulse = Math.sin(t_time * 1.5) * 0.05 + 1; let cx = w/2; let cy = h/2 + h*0.1; let grad = targetCtx.createRadialGradient(cx, cy, Math.max(w,h) * 0.05, cx, cy, Math.max(w,h) * 0.6 * pulse); grad.addColorStop(0, `rgba(255, 100, 50, 0.8)`); grad.addColorStop(0.4, `rgba(150, 20, 80, 0.6)`); grad.addColorStop(1, 'rgba(0, 0, 0, 0)'); targetCtx.globalCompositeOperation = 'screen'; targetCtx.fillStyle = grad; targetCtx.fillRect(0, 0, w, h); targetCtx.globalCompositeOperation = 'source-over'; targetCtx.drawImage(grainFrames[Math.floor(t_time * 15) % 4], 0, 0, w, h); }
+        function drawDusk(targetCtx, w, h, t_time) { targetCtx.fillStyle = '#050a1f'; targetCtx.fillRect(0, 0, w, h); let pulse = Math.sin(t_time * 1) * 0.05 + 1; let cx = w/2; let cy = h/2; let grad = targetCtx.createRadialGradient(cx, cy, Math.max(w,h) * 0.1, cx, cy, Math.max(w,h) * 0.8 * pulse); grad.addColorStop(0, `rgba(100, 150, 255, 0.4)`); grad.addColorStop(0.5, `rgba(50, 20, 100, 0.3)`); grad.addColorStop(1, 'rgba(0, 0, 0, 0)'); targetCtx.globalCompositeOperation = 'screen'; targetCtx.fillStyle = grad; targetCtx.fillRect(0, 0, w, h); targetCtx.globalCompositeOperation = 'source-over'; targetCtx.drawImage(grainFrames[Math.floor(t_time * 15) % 4], 0, 0, w, h); }
+        function drawUkiyo(targetCtx, w, h, t_time, colors) { 
+            let drift = Math.sin(t_time * 0.2) * h * 0.1; let grad = targetCtx.createLinearGradient(0, -h*0.1 + drift, 0, h*1.1 + drift);
+            colors.forEach((c, i) => { grad.addColorStop(i / (colors.length - 1), c); }); targetCtx.fillStyle = grad; targetCtx.fillRect(0, 0, w, h); 
+            let orbX = w/2 + Math.cos(t_time * 0.15) * w * 0.2; let orbY = h*0.6 + Math.sin(t_time * 0.2) * h * 0.1; let pulse = Math.sin(t_time * 0.5) * 0.1 + 1; 
+            let orbGrad = targetCtx.createRadialGradient(orbX, orbY, 0, orbX, orbY, w * 0.5 * pulse); orbGrad.addColorStop(0, 'rgba(255,255,255,0.2)'); orbGrad.addColorStop(1, 'rgba(255,255,255,0)'); 
+            targetCtx.globalCompositeOperation = 'screen'; targetCtx.fillStyle = orbGrad; targetCtx.fillRect(0,0,w,h); 
+            targetCtx.globalCompositeOperation = 'source-over'; targetCtx.drawImage(grainFrames[Math.floor(t_time * 15) % 4], 0, 0, w, h); 
+        }
+        function drawResonance(tCtx, w, h, t) {
+            let drift = Math.sin(t*0.2)*h*0.1; let grad = tCtx.createLinearGradient(0, h*0.2+drift, 0, h*0.8+drift);
+            grad.addColorStop(0, '#5a9ea8'); grad.addColorStop(0.5, '#f5c9b2'); grad.addColorStop(1, '#e89e9f');
+            tCtx.fillStyle = grad; tCtx.fillRect(0,0,w,h);
+            let pulse = Math.sin(t*1)*0.05 + 1; let sunGrad = tCtx.createRadialGradient(w/2, h/2+drift, 0, w/2, h/2+drift, w*0.4*pulse);
+            sunGrad.addColorStop(0, 'rgba(255, 240, 200, 0.8)'); sunGrad.addColorStop(0.2, 'rgba(255, 200, 150, 0.4)'); sunGrad.addColorStop(1, 'rgba(255, 200, 150, 0)');
+            tCtx.globalCompositeOperation = 'screen'; tCtx.fillStyle = sunGrad; tCtx.fillRect(0,0,w,h); tCtx.globalCompositeOperation = 'source-over';
+            tCtx.drawImage(grainFrames[Math.floor(t * 15) % 4], 0, 0, w, h); 
+        }
+        function drawEclipse(tCtx, w, h, t) {
+            tCtx.fillStyle = '#050505'; tCtx.fillRect(0,0,w,h);
+            let cx = w/2, cy = h/2, r = Math.min(w,h)*0.35;
+            let innerGrad = tCtx.createLinearGradient(cx, cy-r, cx, cy+r);
+            innerGrad.addColorStop(0, '#000000'); innerGrad.addColorStop(0.5, '#1a3b85'); innerGrad.addColorStop(1, '#6f3b85');
+            tCtx.beginPath(); tCtx.arc(cx, cy, r*0.98, 0, Math.PI*2); tCtx.fillStyle = innerGrad; tCtx.fill();
+            let orbX = cx + Math.cos(t*0.5)*r*0.1, orbY = cy + Math.sin(t*0.5)*r*0.1;
+            let coronaGrad = tCtx.createRadialGradient(orbX, orbY, r*0.9, orbX, orbY, r*1.3);
+            coronaGrad.addColorStop(0, 'rgba(255, 100, 20, 0.9)'); coronaGrad.addColorStop(0.5, 'rgba(200, 50, 10, 0.4)'); coronaGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            tCtx.globalCompositeOperation = 'screen'; tCtx.fillStyle = coronaGrad; tCtx.fillRect(0,0,w,h);
+            tCtx.globalCompositeOperation = 'source-over'; tCtx.beginPath(); tCtx.arc(cx, cy, r*0.95, 0, Math.PI*2); tCtx.fillStyle = '#020202'; tCtx.fill();
+            tCtx.drawImage(grainFrames[Math.floor(t * 15) % 4], 0, 0, w, h); 
+        }
+
+        function drawVideoCover(c, vid, cw, ch) { const vw = vid.videoWidth; const vh = vid.videoHeight; if(vw === 0 || vh === 0) return; const scale = Math.max(cw / vw, ch / vh); const w = vw * scale; const h = vh * scale; const x = (cw - w) / 2; const y = (ch - h) / 2; c.drawImage(vid, x, y, w, h); }
+
+        function setZenMode(active) { isZenActive = active; const fullscreenWrapper = document.getElementById('fullscreenWrapper'); const minimalControls = document.getElementById('minimalControls'); if (isZenActive) { fullscreenWrapper.classList.add('zen-active'); if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen(); else if (document.documentElement.webkitRequestFullscreen) document.documentElement.webkitRequestFullscreen(); if (isRecordingAudio) zenRecTimerText.style.display = 'block'; resetIdleTimer(); } else { fullscreenWrapper.classList.remove('zen-active'); minimalControls.classList.remove('hidden'); document.body.classList.remove('idle-cursor'); zenRecTimerText.style.display = 'none'; clearTimeout(idleTimer); if (document.fullscreenElement || document.webkitFullscreenElement) { if (document.exitFullscreen) document.exitFullscreen(); else if (document.webkitExitFullscreen) document.webkitExitFullscreen(); } } }
+        function resetIdleTimer() { if (!isZenActive) return; const minimalControls = document.getElementById('minimalControls'); minimalControls.classList.remove('hidden'); document.body.classList.remove('idle-cursor'); clearTimeout(idleTimer); idleTimer = setTimeout(() => { if (isZenActive) { minimalControls.classList.add('hidden'); document.body.classList.add('idle-cursor'); } }, 2500); }
+        function updatePlayButtons() { const playIcon = document.getElementById('playIcon'), playText = document.getElementById('playText'), btn = document.getElementById('startBtn'); if (playIcon && playText) { playIcon.innerHTML = isPlaying ? pauseIconSvg : playIconSvg; playText.innerText = isPlaying ? 'PAUSE' : 'PLAY'; } if(isPlaying) btn.classList.add('playing'); else btn.classList.remove('playing'); document.getElementById('minPlayBtn').innerText = isPlaying ? '⏸ PAUSE' : '▶ PLAY'; }
+        
+        function updateTrackCount() { 
+            const capBtn = document.getElementById('captureBtn'), modeBadge = document.getElementById('trackBadge'); 
+            if (isLoopMode) { 
+                document.getElementById('returnBtn').style.display = 'block'; 
+                modeBadge.innerHTML = `MODE: LOOP BANK (${activeSliceIds.length} ACTIVE)`; 
+                modeBadge.style.background = 'var(--warning-yellow)'; 
+                modeBadge.style.color = 'var(--ink)'; 
+                capBtn.disabled = true; 
+                capBtn.innerText = '🔒 STOP LOOPS TO CAPTURE'; 
+            } else { 
+                document.getElementById('returnBtn').style.display = 'none'; 
+                modeBadge.innerHTML = `MODE: MASTER SEQUENCE`; 
+                modeBadge.style.background = 'var(--accent-pink)'; 
+                modeBadge.style.color = 'white'; 
+                capBtn.disabled = false; 
+                capBtn.innerText = '📸 CAPTURE LOOP'; 
+            } 
+        }
+
+        function updatePhasesFromGlobalTime() { mainPendulums.forEach((p, i) => { p.phase = p.frequency * globalPhaseTime; }); let visualTimeMs = (globalPhaseTime / 0.02) * 16.666; document.getElementById('playTimer').innerText = formatTimeMs(visualTimeMs); }
+        function updatePhaseDisplay() { if (mainPendulums.length < 2) return; let progress = ((mainPendulums[1].phase - mainPendulums[0].phase) / (Math.PI * 2)) % 1; if (progress < 0) progress += 1; let currentPhaseIndex = 0; for (let i = sequencePhases.length - 1; i >= 0; i--) { if (progress >= sequencePhases[i].threshold) { currentPhaseIndex = i; break; } } const phaseName = sequencePhases[currentPhaseIndex].name; document.getElementById('currentPhaseDisplay').innerText = phaseName; return phaseName; }
+
+        function syncUI() {
+            let state = focusedSliceId !== null ? slicesData.find(s => s.id === focusedSliceId).settings : mainState;
+            document.getElementById('instCtrl').value = state.instrument; 
+            document.getElementById('arraySizeCtrl').value = state.arraySize || mainPendulums.length; 
+            document.getElementById('shapeCtrl').value = state.shape; 
+            document.getElementById('triggerModeCtrl').value = state.triggerMode; 
+            document.getElementById('speedCtrl').value = state.speed; 
+            document.getElementById('pitchCtrl').value = state.pitch; 
+            document.getElementById('mixCtrl').value = state.mix !== undefined ? state.mix : 1.0; 
+            document.getElementById('glitchCtrl').value = state.glitch; 
+            document.getElementById('delayMixCtrl').value = state.delayMix; 
+            document.getElementById('revMixCtrl').value = state.revMix; 
+            document.getElementById('filterCtrl').value = state.filter; 
+            document.getElementById('tapeWowCtrl').value = state.tapeWow; 
+            document.getElementById('fifthMixCtrl').value = state.fifthMix; 
+            document.getElementById('pitchLockCtrl').checked = state.pitchLock || false;
+            document.getElementById('midiChannelCtrl').value = state.midiChannel || 1;
+
+            updateReadout('arraySizeCtrl', state.arraySize || mainPendulums.length); 
+            updateReadout('speedCtrl', state.speed); 
+            updateReadout('pitchCtrl', state.pitch); 
+            updateReadout('mixCtrl', state.mix !== undefined ? state.mix : 1.0); 
+            updateReadout('glitchCtrl', state.glitch); 
+            updateReadout('delayMixCtrl', state.delayMix); 
+            updateReadout('revMixCtrl', state.revMix); 
+            updateReadout('filterCtrl', state.filter); 
+            updateReadout('tapeWowCtrl', state.tapeWow); 
+            updateReadout('fifthMixCtrl', state.fifthMix);
+
+            ['arraySizeCtrl', 'shapeCtrl', 'triggerModeCtrl'].forEach(id => { 
+                let el = document.getElementById(id); 
+                el.disabled = (focusedSliceId !== null); 
+                let container = document.querySelector(`[data-id="${id}"]`); 
+                if (container) { if (focusedSliceId !== null) container.classList.add('disabled-knob'); else container.classList.remove('disabled-knob'); } 
+            });
+
+            const paramTitle = document.getElementById('paramTitle'); 
+            if (focusedSliceId !== null) { 
+                paramTitle.innerText = `EDITING: LOOP-${focusedSliceId}`; 
+                paramTitle.style.color = 'var(--accent-purple)'; 
+            } else { 
+                paramTitle.innerText = 'SOUND PARAMETERS'; 
+                paramTitle.style.color = 'var(--ink)'; 
+            }
+            document.querySelectorAll('.knob-container input').forEach(input => { if(input.id !== 'dotPitchCtrl' && input.id !== 'videoDimCtrl' && input.id !== 'videoGrainCtrl' && input.id !== 'dotPhaseCtrl') input.dispatchEvent(new Event('input')); });
+        }
+
+        function focusSlice(id) { focusedSliceId = id; document.querySelectorAll('.edit-btn').forEach(btn => btn.classList.remove('focused-edit-btn')); const li = document.getElementById(`slice-${id}`); if(li) { const btn = li.querySelector('.edit-btn'); if (btn) btn.classList.add('focused-edit-btn'); } syncUI(); document.getElementById('soundParamsPanel').open = true; }
+        function focusMaster() { focusedSliceId = null; document.querySelectorAll('.edit-btn').forEach(btn => btn.classList.remove('focused-edit-btn')); syncUI(); }
+        function recalculatePath() { pathDistances = [0]; totalPathLength = 0; for(let i=1; i<customPath.length; i++) { let dx = customPath[i].x - customPath[i-1].x; let dy = customPath[i].y - customPath[i-1].y; totalPathLength += Math.sqrt(dx*dx + dy*dy); pathDistances.push(totalPathLength); } document.getElementById('clearPathBtn').style.display = customPath.length > 0 ? 'inline-block' : 'none'; }
+        
+        function updateSliceMeta(id) { 
+            const slice = slicesData.find(s => s.id === id); if(!slice) return; 
+            const instName = document.querySelector(`#instCtrl option[value="${slice.settings.instrument}"]`).innerText; 
+            const speedStr = slice.settings.speed.toFixed(1) + 'x'; 
+            const chStr = `CH ${slice.settings.midiChannel || 1}`;
+            const metaSpan = document.getElementById(`sliceMeta-${id}`); 
+            if(metaSpan) metaSpan.innerText = `${instName} | ${slice.dotConfigs.length} DOTS | ${speedStr} | ${chStr}`; 
+        }
+
+        function deleteSlice(id, listItemElement) { const activeIdx = activeSliceIds.indexOf(id); if (activeIdx > -1) activeSliceIds.splice(activeIdx, 1); slicesData = slicesData.filter(s => s.id !== id); listItemElement.remove(); isLoopMode = activeSliceIds.length > 0; updateTrackCount(); forceCanvasWipe(); if (slicesData.length === 0) sliceList.innerHTML = `<li style="cursor: default; text-align: center; color: #888; border: 2px dashed #ccc; box-shadow: none;" id="placeholderTxt">PAUSE TIMELINE, FIND A PATTERN, AND HIT [CAPTURE LOOP] TO BUILD TRACKS.</li>`; }
+
+        function toggleSliceLoop(id) {
+            const slice = slicesData.find(s => s.id === id); if (!slice) return;
+            if (!audioCtx && appAudioMode !== 'daw') initAudio(); 
+            if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+            const index = activeSliceIds.indexOf(id); const liElement = document.getElementById(`slice-${id}`);
+            if (index > -1) { activeSliceIds.splice(index, 1); if(liElement) liElement.classList.remove('active-slice'); } 
+            else { 
+                slice.livePendulums = slice.phases.map((ph, i) => { 
+                    let ep = ph + (slice.dotConfigs[i].phaseOffset || 0);
+                    return { phase: ph, frequency: 0.5 + (i * 0.02), lastSide: Math.sin(ep) > 0 ? 1 : -1, lastDir: Math.cos(ep) > 0 ? 1 : -1, muted: slice.dotConfigs[i].muted, pitchShift: slice.dotConfigs[i].pitchShift, phaseOffset: slice.dotConfigs[i].phaseOffset || 0, pulse: 0, lastSegment: undefined }; 
+                }); 
+                slice.loopTimer = 0; activeSliceIds.push(id); if(liElement) liElement.classList.add('active-slice'); if (!isPlaying) { isPlaying = true; updatePlayButtons(); } 
+            }
+            isLoopMode = activeSliceIds.length > 0; updateTrackCount(); forceCanvasWipe();
+        }
+
+        function generateSliceLog(phaseName) {
+            if (sliceCount === 1 && document.getElementById('placeholderTxt')) document.getElementById('placeholderTxt').remove();
+            let currentSettings = { ...mainState }; 
+            currentSettings.midiChannel = (sliceCount % 16) + 1;
+            let pathData = { path: JSON.parse(JSON.stringify(customPath)), distances: [...pathDistances], totalLength: totalPathLength }; 
+            const savedDotConfigs = mainPendulums.map(p => ({ muted: p.muted, pitchShift: p.pitchShift, phaseOffset: p.phaseOffset || 0 }));
+            const newSlice = { id: sliceCount, name: phaseName, phases: mainPendulums.map(p => p.phase), dotConfigs: savedDotConfigs, settings: currentSettings, pathData: pathData, loopLength: 0, restLength: 0, loopTimer: 0 }; 
+            slicesData.push(newSlice);
+
+            const li = document.createElement('li'); li.id = `slice-${sliceCount}`; 
+            const instName = document.querySelector(`#instCtrl option[value="${currentSettings.instrument}"]`).innerText; 
+            const speedStr = currentSettings.speed.toFixed(1) + 'x'; 
+            const chStr = `CH ${currentSettings.midiChannel}`;
+            
+            const infoDiv = document.createElement('div'); infoDiv.className = 'slice-info'; 
+            infoDiv.innerHTML = `<div class="slice-title-area" style="flex: 1;"><div class="slice-title-top"><span><strong>LOOP-${newSlice.id}:</strong> ${phaseName}</span></div><span class="slice-meta" id="sliceMeta-${newSlice.id}">${instName} | ${savedDotConfigs.length} DOTS | ${speedStr} | ${chStr}</span></div><div class="slice-action-area"><button class="edit-btn" title="Edit Parameters">⚙️ EDIT</button><button class="delete-btn" title="Clear Buffer">×</button></div>`;
+            const controlsDiv = document.createElement('div'); controlsDiv.className = 'slice-controls'; 
+            controlsDiv.innerHTML = `<div class="slice-control-row"><label>TRIM: <span class="length-val">INF</span></label><input type="range" class="slice-length-slider knob-slider" min="0" max="16" step="0.125" value="0"></div><div class="slice-control-row"><label>REST: <span class="rest-val">0.0s</span></label><input type="range" class="slice-rest-slider knob-slider" min="0" max="16" step="0.125" value="0"></div>`;
+            
+            infoDiv.querySelector('.edit-btn').addEventListener('click', (e) => { e.stopPropagation(); if (focusedSliceId === newSlice.id) focusMaster(); else focusSlice(newSlice.id); }); 
+            infoDiv.querySelector('.delete-btn').addEventListener('click', (e) => { e.stopPropagation(); if(focusedSliceId === newSlice.id) focusMaster(); deleteSlice(newSlice.id, li); });
+            li.addEventListener('click', (e) => { if (e.target.tagName.toLowerCase() === 'input' || e.target.classList.contains('edit-btn') || e.target.classList.contains('delete-btn')) return; toggleSliceLoop(newSlice.id); }); 
+            controlsDiv.addEventListener('click', e => e.stopPropagation()); controlsDiv.addEventListener('pointerdown', e => e.stopPropagation());
+            
+            const slider = controlsDiv.querySelector('.slice-length-slider'); const lengthVal = controlsDiv.querySelector('.length-val');
+            slider.addEventListener('input', (e) => { const val = parseFloat(e.target.value); const targetSlice = slicesData.find(s => s.id === newSlice.id); if (targetSlice) { targetSlice.loopLength = val; targetSlice.loopTimer = 0; lengthVal.innerText = val === 0 ? 'INF' : val.toFixed(3) + 's'; } });
+            const restSlider = controlsDiv.querySelector('.slice-rest-slider'); const restVal = controlsDiv.querySelector('.rest-val');
+            restSlider.addEventListener('input', (e) => { const val = parseFloat(e.target.value); const targetSlice = slicesData.find(s => s.id === newSlice.id); if (targetSlice) { targetSlice.restLength = val; restVal.innerText = val.toFixed(1) + 's'; } });
+
+            li.appendChild(infoDiv); li.appendChild(controlsDiv); sliceList.prepend(li); sliceCount++; return newSlice.id;
+        }
+
+        function initKnobs() {
+            document.querySelectorAll('.knob-container').forEach(container => {
+                const inputId = container.getAttribute('data-id'); const input = document.getElementById(inputId); if(!input) return;
+                const dial = container.querySelector('.knob-dial'); let min = parseFloat(input.min), max = parseFloat(input.max), step = parseFloat(input.step) || Math.abs(max - min) / 100;
+                function updateVisuals() { let val = parseFloat(input.value); let pct = (val - min) / (max - min); let deg = -135 + (pct * 270); dial.style.transform = `rotate(${deg}deg)`; } updateVisuals();
+                let startY, startVal;
+                container.addEventListener('pointerdown', (e) => {
+                    if(container.classList.contains('disabled-knob')) return; e.preventDefault(); startY = e.clientY; startVal = parseFloat(input.value); container.setPointerCapture(e.pointerId);
+                    container.onpointermove = (ev) => { let deltaY = startY - ev.clientY; let valChange = (deltaY / 150) * (max - min); let newVal = startVal + valChange; newVal = Math.max(min, Math.min(max, newVal)); let steppedVal = parseFloat((Math.round(newVal / step) * step).toFixed(4)); if (input.value != steppedVal) { input.value = steppedVal; updateVisuals(); input.dispatchEvent(new Event('input')); } };
+                    container.onpointerup = () => { container.onpointermove = null; container.onpointerup = null; container.releasePointerCapture(e.pointerId); };
+                });
+                container.addEventListener('dblclick', () => { if(container.classList.contains('disabled-knob')) return; input.dispatchEvent(new Event('dblclick')); updateVisuals(); }); input.addEventListener('input', updateVisuals); const originalDescriptor = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value'); Object.defineProperty(input, 'value', { get: function() { return originalDescriptor.get.call(this); }, set: function(val) { originalDescriptor.set.call(this, val); updateVisuals(); } });
+            });
+        }
+
+        function refreshMidiOutputs() {
+            const ctrl = document.getElementById('midiOutCtrl');
+            ctrl.innerHTML = '';
+            if (!midiAccess || midiAccess.outputs.size === 0) {
+                ctrl.innerHTML = '<option value="none">NO MIDI PORTS FOUND</option>';
+                currentMidiOutput = null;
+                return;
+            }
+            let firstId = null;
+            for (let output of midiAccess.outputs.values()) {
+                const opt = document.createElement('option');
+                opt.value = output.id;
+                opt.text = output.name || `MIDI Port ${output.id}`;
+                ctrl.appendChild(opt);
+                if (!firstId) firstId = output.id;
+            }
+            if (firstId) {
+                ctrl.value = firstId;
+                currentMidiOutput = midiAccess.outputs.get(firstId);
+            }
+        }
+
+        function draw() {
+            let now = performance.now(); let dt = now - lastFrameTime; if (dt > 100) dt = 16.666; lastFrameTime = now;
+            let t_time = now / 1000; let timeScale = dt / 16.666;
+
+            if (isExportingSnippet) {
+                const elapsed = now - snippetStartTime; const progressPct = Math.min(100, (elapsed / snippetTargetMs) * 100); document.getElementById('exportProgressBar').style.width = progressPct + '%'; document.getElementById('exportProgressText').innerText = `RENDERING: ${(elapsed/1000).toFixed(1)}s / ${(snippetTargetMs/1000).toFixed(1)}s`;
+                if (elapsed >= snippetTargetMs) { isExportingSnippet = false; if (snippetMediaRecorder && snippetMediaRecorder.state !== 'inactive') snippetMediaRecorder.stop(); }
+            }
+
+            if(isRecordingAudio) { const txt = "REC " + formatTimeMs(now - audioRecStartTime); document.getElementById('recTimer').innerText = txt; if(zenRecTimerText) zenRecTimerText.innerText = txt; }
+            const t = visualThemes[currentThemeIndex];
+            
+            if(customVideoActive && bgVideoElement.readyState >= 2) {
+                drawVideoCover(bgCtx, bgVideoElement, bgCanvas.width, bgCanvas.height); 
+                let dimVal = parseFloat(document.getElementById('videoDimCtrl').value) || 0; 
+                bgCtx.fillStyle = `rgba(0,0,0,${dimVal})`; 
+                bgCtx.fillRect(0, 0, bgCanvas.width, bgCanvas.height); 
+                
+                let grainVal = parseFloat(document.getElementById('videoGrainCtrl').value) || 0;
+                if(grainVal > 0) {
+                    bgCtx.globalAlpha = grainVal;
+                    bgCtx.drawImage(grainFrames[Math.floor(t_time * 15) % 4], 0, 0, bgCanvas.width, bgCanvas.height);
+                    bgCtx.globalAlpha = 1.0;
+                }
+            } else {
+                if (t.animated === 'linear') { drawLinearMorph(bgCtx, bgCanvas.width, bgCanvas.height, t_time); } 
+                else if (t.animated === 'radial') { drawRadialMist(bgCtx, bgCanvas.width, bgCanvas.height, t_time); } 
+                else if (t.animated === 'dopamine') { drawDopamine(bgCtx, bgCanvas.width, bgCanvas.height, t_time); }
+                else if (t.animated === 'prophecy') { drawProphecy(bgCtx, bgCanvas.width, bgCanvas.height, t_time); }
+                else if (t.animated === 'sunset') { drawSunset(bgCtx, bgCanvas.width, bgCanvas.height, t_time); }
+                else if (t.animated === 'dusk') { drawDusk(bgCtx, bgCanvas.width, bgCanvas.height, t_time); }
+                else if (t.animated === 'ukiyoe') { drawUkiyo(bgCtx, bgCanvas.width, bgCanvas.height, t_time, t.colors); }
+                else if (t.animated === 'resonance') { drawResonance(bgCtx, bgCanvas.width, bgCanvas.height, t_time); }
+                else if (t.animated === 'eclipse') { drawEclipse(bgCtx, bgCanvas.width, bgCanvas.height, t_time); }
+                else { bgCtx.fillStyle = `rgb(${t.bgRGB})`; bgCtx.fillRect(0, 0, bgCanvas.width, bgCanvas.height); }
+            }
+
+            if (trailMode === 0) { ctx.clearRect(0, 0, canvas.width, canvas.height); } 
+            else { ctx.globalCompositeOperation = 'destination-out'; ctx.fillStyle = `rgba(0, 0, 0, ${trailMode === 1 ? 0.3 : 0.08})`; ctx.fillRect(0, 0, canvas.width, canvas.height); ctx.globalCompositeOperation = 'source-over'; }
+            
+            if (isPlaying && !isScrubbing && !isLoopMode) {
+                globalPhaseTime += mainState.speed * 0.02 * timeScale; 
+                globalPhaseTime = globalPhaseTime % FULL_CYCLE_PHASE; 
+                mainPendulums.forEach((p, i) => { p.phase = p.frequency * globalPhaseTime; }); 
+                let visualTimeMs = (globalPhaseTime / 0.02) * 16.666; document.getElementById('playTimer').innerText = formatTimeMs(visualTimeMs);
+                scrubber.value = (globalPhaseTime / FULL_CYCLE_PHASE) * 1000; updatePhaseDisplay();
+            }
+
+            let setsToRender = [];
+            if (!isLoopMode) { setsToRender.push({ isMain: true, pendulums: mainPendulums, settings: mainState, pathData: { path: customPath, distances: pathDistances, totalLength: totalPathLength }, opacity: 1.0 }); } 
+            else { activeSliceIds.forEach(id => { const slice = slicesData.find(s => s.id === id); if(slice) { setsToRender.push({ isMain: false, sliceRef: slice, pendulums: slice.livePendulums, settings: slice.settings, pathData: slice.pathData, opacity: 1.0 }); } }); }
+
+            const cx = canvas.width / 2; const pad = 50 * scaleRatio; let effectiveHeight = canvas.height; let yOffset = 0; if (canvas.height > canvas.width) { effectiveHeight = canvas.width * (1080 / 1920); yOffset = (canvas.height - effectiveHeight) / 2; }
+            const hRange = effectiveHeight - (pad * 2); const baseR = canvas.width * 0.33; const topY = yOffset + pad; const bottomY = yOffset + effectiveHeight - pad; const midY = yOffset + (effectiveHeight / 2);
+
+            setsToRender.forEach(set => {
+                const activeShape = set.settings.shape; const triggerMode = set.settings.triggerMode || 'center'; const path = set.pathData.path; const pDists = set.pathData.distances; const pLen = set.pathData.totalLength; const totalDots = set.pendulums.length;
+                let inRestPhase = false;
+
+                if (!set.isMain && isPlaying) {
+                    const slice = set.sliceRef;
+                    if (slice.loopLength > 0) {
+                        let totalCycle = slice.loopLength + (slice.restLength || 0);
+                        slice.loopTimer += (dt / 1000) * set.settings.speed; 
+                        
+                        if (slice.loopTimer >= slice.loopLength) {
+                            inRestPhase = true; set.opacity = 0;
+                        } else {
+                            let fadeWindow = Math.min(0.6, slice.loopLength / 2); let timeRemaining = slice.loopLength - slice.loopTimer;
+                            if (slice.loopTimer < fadeWindow) set.opacity = slice.loopTimer / fadeWindow; else if (timeRemaining < fadeWindow) set.opacity = Math.max(0, timeRemaining / fadeWindow); else set.opacity = 1.0;
+                        }
+                        
+                        if (slice.loopTimer >= totalCycle) { slice.loopTimer = 0; set.pendulums.forEach((p, i) => { p.phase = slice.phases[i]; let ep = p.phase + (p.phaseOffset||0); p.lastSide = Math.sin(ep) > 0 ? 1 : -1; p.lastDir = Math.cos(ep) > 0 ? 1 : -1; p.lastSegment = undefined; }); inRestPhase = false;}
+                    }
+                }
+
+                let shapeOpacity = set.isMain ? 0.2 : 0.15;
+                if (path.length > 0) {
+                    ctx.strokeStyle = `rgba(${t.line}, ${shapeOpacity})`; ctx.lineWidth = 2 * scaleRatio; ctx.beginPath(); ctx.moveTo(path[0].x, path[0].y); for(let i=1; i<path.length; i++) ctx.lineTo(path[i].x, path[i].y); ctx.stroke();
+                } else {
+                    if (triggerMode === 'center') { ctx.beginPath(); ctx.setLineDash([4 * scaleRatio, 6 * scaleRatio]); ctx.moveTo(cx, topY); ctx.lineTo(cx, bottomY); ctx.strokeStyle = `rgba(${t.line}, ${shapeOpacity * 0.75})`; ctx.stroke(); ctx.setLineDash([]); }
+                    ctx.strokeStyle = `rgba(${t.line}, ${shapeOpacity})`; ctx.lineWidth = 2 * scaleRatio; ctx.beginPath();
+                    if (activeShape === 'v') { ctx.moveTo(cx - baseR, topY); ctx.lineTo(cx, bottomY); ctx.lineTo(cx + baseR, topY); } 
+                    else if (activeShape === 'box') { ctx.moveTo(cx - baseR, topY); ctx.lineTo(cx - baseR, bottomY); ctx.moveTo(cx + baseR, topY); ctx.lineTo(cx + baseR, bottomY); } 
+                    else if (activeShape === 'hourglass') { ctx.moveTo(cx - baseR, topY); ctx.lineTo(cx, midY); ctx.lineTo(cx - baseR, bottomY); ctx.moveTo(cx + baseR, topY); ctx.lineTo(cx, midY); ctx.lineTo(cx + baseR, bottomY); } 
+                    else if (activeShape === 'sphere') { ctx.ellipse(cx, midY, baseR, hRange/2, 0, 0, Math.PI * 2); } 
+                    else if (activeShape === 'rhombus') { ctx.moveTo(cx, topY); ctx.lineTo(cx - baseR, midY); ctx.lineTo(cx, bottomY); ctx.moveTo(cx, topY); ctx.lineTo(cx + baseR, midY); ctx.lineTo(cx, bottomY); }
+                    else if (activeShape === 'slant') { ctx.moveTo(cx - baseR, topY); ctx.lineTo(cx - baseR, bottomY); ctx.moveTo(cx + baseR, topY); ctx.lineTo(cx - baseR, bottomY); }
+                    else if (activeShape === 'hexagon') {
+                        ctx.moveTo(cx - baseR*0.5, topY); ctx.lineTo(cx - baseR, topY + hRange*0.25); ctx.lineTo(cx - baseR, bottomY - hRange*0.25); ctx.lineTo(cx - baseR*0.5, bottomY);
+                        ctx.moveTo(cx + baseR*0.5, topY); ctx.lineTo(cx + baseR, topY + hRange*0.25); ctx.lineTo(cx + baseR, bottomY - hRange*0.25); ctx.lineTo(cx + baseR*0.5, bottomY);
+                    }
+                    ctx.stroke();
+                }
+
+                set.pendulums.forEach((p, index) => {
+                    if (inRestPhase) return;
+                    if (isPlaying && !set.isMain) p.phase += p.frequency * set.settings.speed * 0.02 * timeScale;
+                    
+                    let effectivePhase = p.phase + (p.phaseOffset || 0);
+                    const swing = Math.sin(effectivePhase); const currentSide = swing > 0 ? 1 : -1; const velocity = Math.cos(effectivePhase); const currentDir = velocity > 0 ? 1 : -1; let playedNoteThisFrame = false; let px, py;
+
+                    if (path.length > 1) {
+                        const t_pos = (swing + 1) / 2; const d = t_pos * pLen; let currentSegment = 0, targetX = path[0].x, targetY = path[0].y;
+                        for(let i=1; i<pDists.length; i++) { if (d <= pDists[i] || i === pDists.length - 1) { currentSegment = i; let prevD = pDists[i-1], segLen = pDists[i] - prevD; let localT = segLen === 0 ? 0 : (d - prevD) / segLen; targetX = customPath[i-1].x + (customPath[i].x - customPath[i-1].x) * localT; targetY = customPath[i-1].y + (customPath[i].y - customPath[i-1].y) * localT; break; } }
+                        px = targetX; py = targetY;
+                        if (p.lastSegment !== undefined && p.lastSegment !== currentSegment && isPlaying && !isScrubbing && !playedNoteThisFrame) { if (set.opacity > 0.05) playNote(p, index, set.settings, set.opacity); if (isPulseEnabled) p.pulse = 1.0; playedNoteThisFrame = true; }
+                        p.lastSegment = currentSegment;
+                    } else {
+                        const normalizedY = totalDots > 1 ? (index / (totalDots - 1)) : 0.5; py = topY + (normalizedY * hRange); let range; let localCx = cx;
+                        if (activeShape === 'v') range = (1 - normalizedY) * baseR; 
+                        else if (activeShape === 'box') range = baseR; 
+                        else if (activeShape === 'hourglass') range = Math.abs((1 - normalizedY) - 0.5) * (baseR * 2); 
+                        else if (activeShape === 'sphere') range = Math.sin((1 - normalizedY) * Math.PI) * baseR;
+                        else if (activeShape === 'rhombus') range = (0.5 - Math.abs(normalizedY - 0.5)) * (baseR * 2);
+                        else if (activeShape === 'slant') { range = baseR * (1 - normalizedY); localCx = cx - (normalizedY * baseR); }
+                        else if (activeShape === 'hexagon') {
+                            if (normalizedY < 0.25) range = baseR * 0.5 + (normalizedY / 0.25) * baseR * 0.5;
+                            else if (normalizedY <= 0.75) range = baseR;
+                            else range = baseR - ((normalizedY - 0.75) / 0.25) * baseR * 0.5;
+                        }
+                        px = localCx + (swing * range);
+                        
+                        let standardTrigger = false; 
+                        if (triggerMode === 'wall') { 
+                            if (currentDir !== p.lastDir && isPlaying && !isScrubbing) standardTrigger = true; 
+                        } else { 
+                            if (currentSide !== p.lastSide && isPlaying && !isScrubbing) standardTrigger = true; 
+                        }
+                        
+                        let snapX = false;
+                        if (standardTrigger && !playedNoteThisFrame) { 
+                            if (set.opacity > 0.05) playNote(p, index, set.settings, set.opacity); 
+                            if (isPulseEnabled) p.pulse = 1.0; 
+                            playedNoteThisFrame = true; 
+                            snapX = true;
+                        }
+
+                        if (snapX) { px = triggerMode === 'wall' ? localCx + (p.lastDir * range) : localCx; }
+                        
+                        if (isTetherEnabled) { ctx.beginPath(); ctx.moveTo(localCx, bottomY); ctx.lineTo(px, py); ctx.strokeStyle = `rgba(${t.line}, ${set.opacity * 0.15})`; ctx.lineWidth = 1 * scaleRatio; ctx.stroke(); }
+                    }
+                    
+                    p.lastSide = currentSide; p.lastDir = currentDir;
+                    if (p.pulse === undefined) p.pulse = 0; if (p.pulse > 0) p.pulse = Math.max(0, p.pulse - 0.05 * timeScale); 
+                    
+                    let currentRadius = (6 + (p.pulse * 4)) * scaleRatio; 
+                    if (p.pulse > 0 && isPulseEnabled) { ctx.beginPath(); ctx.arc(px, py, currentRadius + ((1 - p.pulse) * 15 * scaleRatio), 0, Math.PI * 2); ctx.strokeStyle = t.getDotColor(index, totalDots, p.pulse * set.opacity); ctx.lineWidth = 2 * scaleRatio; ctx.stroke(); }
+                    ctx.fillStyle = t.getDotColor(index, totalDots, set.opacity); ctx.beginPath(); ctx.arc(px, py, currentRadius, 0, Math.PI * 2); ctx.fill();
+                    
+                    const isEditingThis = (!isLoopMode && set.isMain) || (isLoopMode && !set.isMain && set.sliceRef.id === focusedSliceId);
+                    if (isEditingThis && selectedDotIndex === index) { ctx.strokeStyle = `rgba(${t.line}, 1)`; ctx.lineWidth = 2 * scaleRatio; ctx.beginPath(); ctx.arc(px, py, currentRadius + 3 * scaleRatio, 0, Math.PI * 2); ctx.stroke(); }
+                });
+            });
+
+            if (isExportingSnippet) {
+                exportCtx.clearRect(0, 0, exportCanvas.width, exportCanvas.height); let isPortraitExport = window.innerHeight > window.innerWidth;
+                let scaleBg = Math.max(exportCanvas.width / bgCanvas.width, exportCanvas.height / bgCanvas.height); let dwBg = bgCanvas.width * scaleBg; let dhBg = bgCanvas.height * scaleBg; let dxBg = (exportCanvas.width - dwBg) / 2; let dyBg = (exportCanvas.height - dhBg) / 2;
+                let tempBgCvs = document.createElement('canvas'); tempBgCvs.width = bgCanvas.width; tempBgCvs.height = bgCanvas.height; let tempBgCtx = tempBgCvs.getContext('2d');
+                
+                if (t.animated === 'linear') { drawLinearMorph(tempBgCtx, tempBgCvs.width, tempBgCvs.height, t_time); } 
+                else if (t.animated === 'radial') { drawRadialMist(tempBgCtx, tempBgCvs.width, tempBgCvs.height, t_time); } 
+                else if (t.animated === 'dopamine') { drawDopamine(tempBgCtx, tempBgCvs.width, tempBgCvs.height, t_time); }
+                else if (t.animated === 'prophecy') { drawProphecy(tempBgCtx, tempBgCvs.width, tempBgCvs.height, t_time); }
+                else if (t.animated === 'sunset') { drawSunset(tempBgCtx, tempBgCvs.width, tempBgCvs.height, t_time); }
+                else if (t.animated === 'dusk') { drawDusk(tempBgCtx, tempBgCvs.width, tempBgCvs.height, t_time); }
+                else if (t.animated === 'ukiyoe') { drawUkiyo(tempBgCtx, tempBgCvs.width, tempBgCvs.height, t_time, t.colors); }
+                else if (t.animated === 'resonance') { drawResonance(tempBgCtx, tempBgCvs.width, tempBgCvs.height, t_time); }
+                else if (t.animated === 'eclipse') { drawEclipse(tempBgCtx, tempBgCvs.width, tempBgCvs.height, t_time); }
+                else { tempBgCtx.fillStyle = `rgb(${t.bgRGB})`; tempBgCtx.fillRect(0, 0, tempBgCvs.width, tempBgCvs.height); }
+                
+                if(customVideoActive && bgVideoElement.readyState >= 2) {
+                    drawVideoCover(tempBgCtx, bgVideoElement, tempBgCvs.width, tempBgCvs.height); 
+                    let dimVal = parseFloat(document.getElementById('videoDimCtrl').value) || 0;
+                    tempBgCtx.fillStyle = `rgba(0,0,0,${dimVal})`; 
+                    tempBgCtx.fillRect(0, 0, tempBgCvs.width, tempBgCvs.height); 
+                    
+                    let grainVal = parseFloat(document.getElementById('videoGrainCtrl').value) || 0;
+                    if(grainVal > 0) {
+                        tempBgCtx.globalAlpha = grainVal;
+                        tempBgCtx.drawImage(grainFrames[Math.floor(t_time * 15) % 4], 0, 0, tempBgCvs.width, tempBgCvs.height);
+                        tempBgCtx.globalAlpha = 1.0;
+                    }
+                }
+                exportCtx.drawImage(tempBgCvs, dxBg, dyBg, dwBg, dhBg);
+                let scaleFg = Math.min(exportCanvas.width / canvas.width, exportCanvas.height / canvas.height); let dwFg = canvas.width * scaleFg; let dhFg = canvas.height * scaleFg; let dxFg = (exportCanvas.width - dwFg) / 2; let dyFg = (exportCanvas.height - dhFg) / 2;
+                exportCtx.drawImage(canvas, dxFg, dyFg, dwFg, dhFg);
+
+                if (infoState > 0) {
+                    const titleText = (document.getElementById('trackTitleCtrl').value || 'UNTITLED SEQUENCE').toUpperCase(); const dateText = "COMPOSED: " + document.getElementById('zenDateText').innerText; const brandingText = "MADE WITH HIRAJOSHI WAVE STUDIO";
+                    exportCtx.save(); exportCtx.textAlign = "right"; exportCtx.textBaseline = "bottom"; exportCtx.shadowColor = "rgba(0, 0, 0, 0.8)"; exportCtx.shadowBlur = 12; exportCtx.shadowOffsetY = 4; exportCtx.shadowOffsetX = 0;
+                    const refWidth = Math.min(exportCanvas.width, exportCanvas.height); const baseFontSize = isPortraitExport ? (refWidth * 0.025) : (refWidth * 0.025); const stateScale = infoState === 1 ? 1 : infoState === 2 ? 1.15 : 1.30; const fScale = stateScale;
+                    let burnX = isPortraitExport ? (dxFg + dwFg - 40) : (exportCanvas.width - 40); let burnY = isPortraitExport ? (dyFg + dhFg + 120) : (exportCanvas.height - 40);
+                    exportCtx.fillStyle = "white"; exportCtx.globalAlpha = 0.5; exportCtx.font = `600 ${baseFontSize * 0.8 * fScale}px 'JetBrains Mono', monospace`; exportCtx.fillText(brandingText, burnX, burnY);
+                    burnY -= (baseFontSize * 1.5 * fScale); exportCtx.globalAlpha = 0.7; exportCtx.font = `600 ${baseFontSize * 0.9 * fScale}px 'JetBrains Mono', monospace`; exportCtx.fillText(dateText, burnX, burnY);
+                    burnY -= (baseFontSize * 1.6 * fScale); exportCtx.globalAlpha = 0.9; exportCtx.font = `600 ${baseFontSize * 1.1 * fScale}px 'JetBrains Mono', monospace`; exportCtx.fillText(titleText, burnX, burnY);
+                    exportCtx.restore();
+                }
+            }
+
+            requestAnimationFrame(draw);
+        }
+
+        window.addEventListener('load', () => {
+            document.addEventListener("fullscreenchange", () => { if (!document.fullscreenElement && isZenActive) { setZenMode(false); } });
+            
+            document.getElementById('themeBtn').addEventListener('click', (e) => {
+                currentThemeIndex = (currentThemeIndex + 1) % visualThemes.length;
+                const t = visualThemes[currentThemeIndex];
+                e.target.innerText = `🎨 ${t.name}`;
+                document.getElementById('minThemeBtn').innerText = `🎨 THEME: ${t.name}`;
+                forceCanvasWipe();
+            });
+            document.getElementById('minThemeBtn').addEventListener('click', () => { document.getElementById('themeBtn').click(); });
+            
+            document.getElementById('trailBtn').addEventListener('click', cycleTrails); document.getElementById('minTrailBtn').addEventListener('click', cycleTrails);
+            document.getElementById('modeEditBtn').addEventListener('click', (e) => { canvasMode = 'edit'; e.target.classList.add('active'); document.getElementById('modeDrawBtn').classList.remove('active'); canvas.style.cursor = 'pointer'; });
+            document.getElementById('modeDrawBtn').addEventListener('click', (e) => { canvasMode = 'draw'; e.target.classList.add('active'); document.getElementById('modeEditBtn').classList.remove('active'); canvas.style.cursor = 'crosshair'; document.getElementById('dotControlPanel').style.display = 'none'; selectedDotIndex = -1; });
+            document.getElementById('pulseToggleBtn').addEventListener('click', (e) => { isPulseEnabled = !isPulseEnabled; e.target.classList.toggle('active'); });
+            document.getElementById('tetherToggleBtn').addEventListener('click', (e) => { isTetherEnabled = !isTetherEnabled; e.target.classList.toggle('active'); });
+            document.getElementById('clearPathBtn').addEventListener('click', () => { customPath = []; recalculatePath(); forceCanvasWipe(); });
+
+            ['sea', 'rain', 'vinyl', 'fire', 'wind', 'custom'].forEach(type => {
+                const btn = document.getElementById(`amb${type.charAt(0).toUpperCase() + type.slice(1)}Btn`);
+                if (btn) {
+                    btn.addEventListener('click', (e) => {
+                        if (type === 'custom' && !customAmbienceBuffer) return;
+                        ambientStates[type] = (ambientStates[type] + 1) % 4; 
+                        
+                        let icon = type === 'custom' ? '🎵' : getAmbIcon(type);
+                        e.target.innerText = `${icon} ${type.toUpperCase()}: ${ambStateLabels[ambientStates[type]]}`; 
+                        e.target.setAttribute('data-state', ambientStates[type]);
+                        
+                        if (ambientGains[type] && audioCtx) { 
+                            const now = audioCtx.currentTime; 
+                            ambientGains[type].gain.cancelScheduledValues(now); 
+                            ambientGains[type].gain.value = ambVolLevels[ambientStates[type]]; 
+                        } else if (ambientStates[type] > 0) { 
+                            if(!audioCtx) document.getElementById('startBtn').click(); 
+                        }
+                    });
+                }
+            });
+
+            document.getElementById('instCtrl').addEventListener('change', (e) => { let targetState = focusedSliceId !== null ? slicesData.find(s => s.id === focusedSliceId).settings : mainState; targetState.instrument = e.target.value; syncUI(); if (focusedSliceId !== null) updateSliceMeta(focusedSliceId); if(!audioCtx && appAudioMode !== 'daw') initAudio(); });
+            document.getElementById('pitchLockCtrl').addEventListener('change', (e) => { let targetState = focusedSliceId !== null ? slicesData.find(s => s.id === focusedSliceId).settings : mainState; targetState.pitchLock = e.target.checked; });
+            document.getElementById('midiChannelCtrl').addEventListener('change', (e) => {
+                let targetState = focusedSliceId !== null ? slicesData.find(s => s.id === focusedSliceId).settings : mainState;
+                targetState.midiChannel = parseInt(e.target.value);
+                if (focusedSliceId !== null) updateSliceMeta(focusedSliceId);
+            });
+
+            document.getElementById('arraySizeCtrl').addEventListener('input', (e) => {
+                if (focusedSliceId !== null) return; const newSize = parseInt(e.target.value); mainState.arraySize = newSize; updateReadout('arraySizeCtrl', newSize);
+                if (newSize > mainPendulums.length) { for (let i = mainPendulums.length; i < newSize; i++) { let ph = (0.5 + (i * 0.02)) * globalPhaseTime; mainPendulums.push({ phase: ph, frequency: 0.5 + (i * 0.02), lastSide: Math.sin(ph) > 0 ? 1 : -1, lastDir: Math.cos(ph) > 0 ? 1 : -1, muted: false, pitchShift: 0, phaseOffset: 0, pulse: 0 }); } } 
+                else if (newSize < mainPendulums.length) { mainPendulums.length = newSize; if (selectedDotIndex >= newSize) { selectedDotIndex = -1; document.getElementById('dotControlPanel').style.display = 'none'; } }
+                if (trailMode > 0) forceCanvasWipe(); 
+            });
+
+            document.getElementById('shapeCtrl').addEventListener('input', (e) => { if (focusedSliceId !== null) return; mainState.shape = e.target.value; if (!isLoopMode) { customPath = []; recalculatePath(); forceCanvasWipe(); } });
+            document.getElementById('triggerModeCtrl').addEventListener('change', (e) => { if (focusedSliceId !== null) return; mainState.triggerMode = e.target.value; });
+
+            const paramDefaults = { 'speedCtrl': 1, 'pitchCtrl': 60, 'mixCtrl': 1.0, 'glitchCtrl': 0, 'delayMixCtrl': 0, 'revMixCtrl': 0, 'filterCtrl': 2000, 'tapeWowCtrl': 0, 'fifthMixCtrl': 0, 'dotPitchCtrl': 0, 'dotPhaseCtrl': 0, 'videoGrainCtrl': 0.3 };
+            Object.keys(paramDefaults).forEach(id => {
+                const el = document.getElementById(id);
+                if(el) {
+                    el.addEventListener('input', (e) => {
+                        const val = parseFloat(e.target.value);
+                        if (id === 'dotPitchCtrl') { 
+                            if (selectedDotIndex !== -1) { let targetSet = focusedSliceId !== null ? slicesData.find(s => s.id === focusedSliceId).livePendulums : mainPendulums; targetSet[selectedDotIndex].pitchShift = val; } 
+                        } else if (id === 'dotPhaseCtrl') {
+                            if (selectedDotIndex !== -1) { let targetSet = focusedSliceId !== null ? slicesData.find(s => s.id === focusedSliceId).livePendulums : mainPendulums; targetSet[selectedDotIndex].phaseOffset = val * (Math.PI / 180); }
+                        } else { 
+                            let targetState = focusedSliceId !== null ? slicesData.find(s => s.id === focusedSliceId).settings : mainState; targetState[id.replace('Ctrl', '')] = val; 
+                        }
+                        updateReadout(id, val); if (focusedSliceId !== null && id === 'speedCtrl') updateSliceMeta(focusedSliceId);
+                    });
+                    el.addEventListener('dblclick', () => {
+                        if (id === 'dotPitchCtrl' || id === 'dotPhaseCtrl') {
+                             if (selectedDotIndex !== -1) { 
+                                 let targetSet = focusedSliceId !== null ? slicesData.find(s => s.id === focusedSliceId).livePendulums : mainPendulums; 
+                                 if (id === 'dotPitchCtrl') targetSet[selectedDotIndex].pitchShift = paramDefaults[id];
+                                 if (id === 'dotPhaseCtrl') targetSet[selectedDotIndex].phaseOffset = paramDefaults[id];
+                                 el.value = paramDefaults[id]; updateReadout(id, paramDefaults[id]); el.dispatchEvent(new Event('input')); 
+                             }
+                        } else { let targetState = focusedSliceId !== null ? slicesData.find(s => s.id === focusedSliceId).settings : mainState; targetState[id.replace('Ctrl', '')] = paramDefaults[id]; syncUI(); if (focusedSliceId !== null && id === 'speedCtrl') updateSliceMeta(focusedSliceId); }
+                    });
+                }
+            });
+
+            scrubber.addEventListener('input', (e) => { isScrubbing = true; if(isPlaying) { isPlaying = false; updatePlayButtons(); } globalPhaseTime = (e.target.value / 1000) * FULL_CYCLE_PHASE; updatePhasesFromGlobalTime(); updatePhaseDisplay(); forceCanvasWipe(); });
+            scrubber.addEventListener('change', () => { isScrubbing = false; mainPendulums.forEach(p => { let ep = p.phase + (p.phaseOffset||0); p.lastSide = Math.sin(ep) > 0 ? 1 : -1; p.lastDir = Math.cos(ep) > 0 ? 1 : -1; }); });
+
+            document.getElementById('closeDotBtn').addEventListener('click', () => { selectedDotIndex = -1; document.getElementById('dotControlPanel').style.display = 'none'; forceCanvasWipe(); });
+            document.getElementById('dotMuteCtrl').addEventListener('change', (e) => { if (selectedDotIndex !== -1) { let targetSet = focusedSliceId !== null ? slicesData.find(s => s.id === focusedSliceId).livePendulums : mainPendulums; targetSet[selectedDotIndex].muted = e.target.checked; } });
+            document.getElementById('startBtn').addEventListener('click', (e) => { if(appAudioMode !== 'daw') initAudio(); isPlaying = !isPlaying; updatePlayButtons(); if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume(); });
+
+            document.getElementById('recordBtn').addEventListener('click', () => {
+                initAudio(); if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+                const recBtn = document.getElementById('recordBtn'); const recIcon = document.getElementById('recIcon'); const recText = document.getElementById('recText'); const timer = document.getElementById('recTimer');
+                if (!mediaRecorder) { alert("Audio export is not supported by your current browser/device."); return; }
+                if (!isRecordingAudio) {
+                    recordedChunks = []; 
+                    try { mediaRecorder.start(); isRecordingAudio = true; audioRecStartTime = performance.now(); recBtn.classList.add('recording'); recIcon.innerHTML = stopIconSvg; recText.innerText = 'STOP'; timer.style.display = 'block'; if (isZenActive) zenRecTimerText.style.display = 'block'; if (!isPlaying) document.getElementById('startBtn').click(); } catch(e) { alert("Failed to start recording: " + e.message); }
+                } else { mediaRecorder.stop(); isRecordingAudio = false; recBtn.classList.remove('recording'); recIcon.innerHTML = recIconSvg; recText.innerText = 'REC'; timer.style.display = 'none'; zenRecTimerText.style.display = 'none'; }
+            });
+
+            document.querySelectorAll('.export-pill').forEach(pill => { pill.addEventListener('click', (e) => { document.querySelectorAll('.export-pill').forEach(p => p.classList.remove('active')); pill.classList.add('active'); const dur = pill.getAttribute('data-dur'); selectedDuration = dur === 'loop' ? 'loop' : parseInt(dur); }); });
+
+            document.getElementById('renderSnippetBtn').addEventListener('click', () => {
+                if (isExportingSnippet) return; initAudio(); if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+                isRenderCancelled = false; let isPortraitExport = window.innerHeight > window.innerWidth;
+                if (isPortraitExport) { exportCanvas.width = 1080; exportCanvas.height = 1920; } else { exportCanvas.width = 1920; exportCanvas.height = 1080; }
+                
+                snippetTargetMs = selectedDuration * 1000;
+                let exportFPS = customVideoActive ? 30 : 60; let exportBitrate = customVideoActive ? 8000000 : 16000000; let ramFlushRate = 1000; 
+                
+                const videoStream = exportCanvas.captureStream(exportFPS); const audioStream = streamDest.stream;
+                const combinedStream = new MediaStream([ videoStream.getVideoTracks()[0], audioStream.getAudioTracks()[0] ]);
+                let mimeType = 'video/mp4'; if (!MediaRecorder.isTypeSupported(mimeType)) { mimeType = 'video/webm;codecs=vp9,opus'; if (!MediaRecorder.isTypeSupported(mimeType)) { mimeType = 'video/webm'; } }
+                
+                snippetChunks = []; snippetMediaRecorder = new MediaRecorder(combinedStream, { mimeType: mimeType, videoBitsPerSecond: exportBitrate });
+                snippetMediaRecorder.ondataavailable = e => { if (e.data.size > 0) snippetChunks.push(e.data); };
+                
+                snippetMediaRecorder.onstop = () => {
+                    if (isRenderCancelled) { snippetChunks = []; isExportingSnippet = false; document.getElementById('exportProgressArea').style.display = 'none'; document.getElementById('renderSnippetBtn').innerText = 'EXPORT VIDEO (.MP4 / .WEBM)'; document.getElementById('renderSnippetBtn').disabled = false; return; }
+                    try { const blob = new Blob(snippetChunks, { type: mimeType }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.style.display = 'none'; a.href = url; const ext = mimeType.includes('mp4') ? 'mp4' : 'webm'; const trackTitle = (document.getElementById('trackTitleCtrl').value || 'UNTITLED').replace(/\s+/g, '_'); a.download = `HIRA_WAVE_${trackTitle}_${selectedDuration}s.${ext}`; document.body.appendChild(a); a.click(); window.URL.revokeObjectURL(url); } catch (err) { console.error("File compilation failed:", err); alert("Export failed. Try a shorter duration (15s)."); }
+                    snippetChunks = []; isExportingSnippet = false; document.getElementById('exportProgressArea').style.display = 'none'; document.getElementById('renderSnippetBtn').innerText = 'EXPORT VIDEO (.MP4 / .WEBM)'; document.getElementById('renderSnippetBtn').disabled = false;
+                };
+                
+                snippetMediaRecorder.start(ramFlushRate); isExportingSnippet = true; snippetStartTime = performance.now();
+                document.getElementById('exportProgressArea').style.display = 'block'; document.getElementById('exportProgressBar').style.width = '0%'; document.getElementById('renderSnippetBtn').innerText = 'RENDERING VIDEO...'; document.getElementById('renderSnippetBtn').disabled = true;
+                if (!isPlaying) document.getElementById('startBtn').click();
+            });
+
+            document.getElementById('cancelRenderBtn').addEventListener('click', () => { if (isExportingSnippet) { isRenderCancelled = true; isExportingSnippet = false; if (snippetMediaRecorder && snippetMediaRecorder.state !== 'inactive') { snippetMediaRecorder.stop(); } document.getElementById('exportProgressArea').style.display = 'none'; document.getElementById('renderSnippetBtn').innerText = 'EXPORT VIDEO (.MP4 / .WEBM)'; document.getElementById('renderSnippetBtn').disabled = false; } });
+            
+            const setupSampler = (letter) => {
+                document.getElementById(`uploadBtn${letter}`).addEventListener('click', () => { document.getElementById(`fileInput${letter}`).click(); });
+                document.getElementById(`fileInput${letter}`).addEventListener('change', function(e) { 
+                    let file = e.target.files[0]; if (!file) return; 
+                    if (!audioCtx && appAudioMode !== 'daw') initAudio(); 
+                    let reader = new FileReader(); 
+                    reader.onload = function(ev) { 
+                        audioCtx.decodeAudioData(ev.target.result, function(buffer) { 
+                            if(letter === 'A') customSampleBufferA = buffer;
+                            else if(letter === 'B') customSampleBufferB = buffer;
+                            else if(letter === 'C') customSampleBufferC = buffer;
+                            
+                            document.getElementById(`samplerStatus${letter}`).innerText = `${letter}: LOADED (${(buffer.duration).toFixed(2)}s)`; 
+                            document.getElementById('instCtrl').value = `sampler${letter}`;
+                            mainState.instrument = `sampler${letter}`;
+                            syncUI();
+                        }, function(e){ 
+                            console.error("Error decoding audio data", e); 
+                            alert("Could not decode audio from this file. Try a standard .wav, .mp3, or .mp4.");
+                        }); 
+                    }; 
+                    reader.readAsArrayBuffer(file); 
+                });
+            };
+            setupSampler('A'); setupSampler('B'); setupSampler('C');
+
+            document.getElementById('uploadAmbBtn').addEventListener('click', () => { document.getElementById('ambFileInput').click(); });
+            document.getElementById('ambFileInput').addEventListener('change', function(e) {
+                let file = e.target.files[0]; if (!file) return;
+                if (!audioCtx && appAudioMode !== 'daw') initAudio();
+                let reader = new FileReader();
+                reader.onload = function(ev) {
+                    audioCtx.decodeAudioData(ev.target.result, function(buffer) {
+                        customAmbienceBuffer = buffer;
+                        document.getElementById('uploadAmbBtn').innerText = `✅ LOADED (${(buffer.duration).toFixed(1)}s)`;
+                        document.getElementById('ambCustomBtn').style.display = 'block';
+                        
+                        if (customAmbienceSource) { customAmbienceSource.stop(); customAmbienceSource.disconnect(); }
+                        
+                        customAmbienceSource = audioCtx.createBufferSource();
+                        customAmbienceSource.buffer = customAmbienceBuffer;
+                        customAmbienceSource.loop = true;
+                        
+                        ambientGains.custom = audioCtx.createGain();
+                        ambientGains.custom.gain.value = ambVolLevels[ambientStates.custom];
+                        
+                        customAmbienceSource.connect(ambientGains.custom);
+                        ambientGains.custom.connect(masterGain);
+                        customAmbienceSource.start();
+                        
+                    }, function(e){ console.error(e); alert("Could not decode audio from this file."); });
+                };
+                reader.readAsArrayBuffer(file);
+            });
+
+            document.getElementById('uploadVideoBtn').addEventListener('click', () => { document.getElementById('videoInput').click(); });
+            document.getElementById('videoInput').addEventListener('change', function(e) {
+                let file = e.target.files[0]; if(!file) return; let url = URL.createObjectURL(file); bgVideoElement.src = url;
+                bgVideoElement.play().then(() => { 
+                    customVideoActive = true; 
+                    document.getElementById('videoStatus').innerText = 'VIDEO ACTIVE'; 
+                    document.getElementById('clearVideoBtn').style.display = 'inline-block'; 
+                    document.getElementById('videoDimContainer').style.display = 'flex'; 
+                    document.getElementById('videoGrainContainer').style.display = 'flex'; 
+                    document.getElementById('videoDimCtrl').dispatchEvent(new Event('input')); 
+                    document.getElementById('videoGrainCtrl').dispatchEvent(new Event('input')); 
+                }).catch(err => { console.error("Video play failed", err); document.getElementById('videoStatus').innerText = 'PLAY ERROR'; });
+            });
+
+            document.getElementById('clearVideoBtn').addEventListener('click', () => { 
+                customVideoActive = false; bgVideoElement.pause(); bgVideoElement.src = ""; 
+                document.getElementById('videoStatus').innerText = 'NO VIDEO'; 
+                document.getElementById('clearVideoBtn').style.display = 'none'; 
+                document.getElementById('videoDimContainer').style.display = 'none'; 
+                document.getElementById('videoGrainContainer').style.display = 'none'; 
+                forceCanvasWipe(); 
+            });
+
+            document.getElementById('micRecordBtn').addEventListener('click', async () => {
+                if (!audioCtx) initAudio(); const btn = document.getElementById('micRecordBtn'); const status = document.getElementById('samplerStatusA');
+                if (!isMicRecording) {
+                    try { const stream = await navigator.mediaDevices.getUserMedia({ audio: true }); micMediaRecorder = new MediaRecorder(stream); micChunks = []; micMediaRecorder.ondataavailable = e => micChunks.push(e.data); micMediaRecorder.onstop = async () => { const blob = new Blob(micChunks, { type: 'audio/webm' }); const arrayBuffer = await blob.arrayBuffer(); audioCtx.decodeAudioData(arrayBuffer, (buffer) => { customSampleBufferA = buffer; status.innerText = `A: CAPTURED (${(buffer.duration).toFixed(2)}s)`; document.getElementById('instCtrl').value = 'samplerA'; mainState.instrument = 'samplerA'; syncUI(); }); stream.getTracks().forEach(track => track.stop()); }; micMediaRecorder.start(); isMicRecording = true; btn.classList.add('recording'); btn.innerText = '⏹ STOP MIC'; status.innerText = 'LISTENING...'; } catch (err) { status.innerText = 'MIC ERROR'; }
+                } else { if(micMediaRecorder && micMediaRecorder.state !== "inactive") micMediaRecorder.stop(); isMicRecording = false; btn.classList.remove('recording'); btn.innerText = '🎙️ REC MIC (TO A)'; }
+            });
+
+            if (navigator.requestMIDIAccess) { 
+                navigator.requestMIDIAccess({ sysex: false }).then((access) => { 
+                    midiAccess = access; 
+                    refreshMidiOutputs(); 
+                    midiAccess.onstatechange = refreshMidiOutputs; 
+                }).catch(err => console.error("MIDI Access Error: ", err)); 
+            }
+            
+            document.getElementById('midiOutCtrl').addEventListener('change', (e) => { 
+                currentMidiOutput = e.target.value === 'none' ? null : midiAccess.outputs.get(e.target.value); 
+            });
+
+            document.querySelectorAll('[data-mode]').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    setAppMode(e.target.getAttribute('data-mode'));
+                });
+            });
+
+            document.getElementById('captureBtn').addEventListener('click', () => { if (isLoopMode) return; if (!audioCtx && appAudioMode !== 'daw') initAudio(); if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume(); const btn = document.getElementById('captureBtn'); btn.style.background = '#ffffff'; btn.style.color = '#9d5cff'; setTimeout(() => { btn.style.background = '#9d5cff'; btn.style.color = '#ffffff'; }, 150); const phaseName = updatePhaseDisplay(); const newId = generateSliceLog(phaseName); if (!activeSliceIds.includes(newId)) toggleSliceLoop(newId); });
+            document.getElementById('returnBtn').addEventListener('click', () => { activeSliceIds = []; isLoopMode = false; document.querySelectorAll('#sliceList li').forEach(el => el.classList.remove('active-slice')); updateTrackCount(); forceCanvasWipe(); focusMaster(); });
+            document.getElementById('fullscreenBtn').addEventListener('click', () => setZenMode(true)); document.getElementById('minExitBtn').addEventListener('click', () => setZenMode(false)); document.getElementById('minPlayBtn').addEventListener('click', () => { document.getElementById('startBtn').click(); }); document.getElementById('infoBtn').addEventListener('click', cycleInfo); document.getElementById('minInfoBtn').addEventListener('click', cycleInfo);
+
+            const fsWrapper = document.getElementById('fullscreenWrapper'); fsWrapper.addEventListener('mousemove', resetIdleTimer); fsWrapper.addEventListener('pointerdown', resetIdleTimer); fsWrapper.addEventListener('touchstart', resetIdleTimer, {passive: true});
+
+            overlay.addEventListener('pointerdown', (e) => { if(infoState === 0) return; overlayDraggingActive = true; let rect = overlay.getBoundingClientRect(); overlayOffsetX = e.clientX - rect.left; overlayOffsetY = e.clientY - rect.top; overlay.setPointerCapture(e.pointerId); e.stopPropagation(); });
+            overlay.addEventListener('pointermove', (e) => { if (!overlayDraggingActive) return; let newLeft = e.clientX - overlayOffsetX; let newTop = e.clientY - overlayOffsetY; newLeft = Math.max(0, Math.min(newLeft, window.innerWidth - overlay.offsetWidth)); newTop = Math.max(0, Math.min(newTop, window.innerHeight - overlay.offsetHeight)); overlay.style.bottom = 'auto'; overlay.style.right = 'auto'; overlay.style.left = newLeft + 'px'; overlay.style.top = newTop + 'px'; });
+            overlay.addEventListener('pointerup', (e) => { overlayDraggingActive = false; overlay.releasePointerCapture(e.pointerId); });
+
+            canvas.addEventListener('pointerdown', (e) => {
+                const rect = canvas.getBoundingClientRect(); const scaleX = canvas.width / rect.width; const scaleY = canvas.height / rect.height; const clickX = (e.clientX - rect.left) * scaleX; const clickY = (e.clientY - rect.top) * scaleY;
+                if (canvasMode === 'draw') { customPath.push({x: clickX, y: clickY}); recalculatePath(); return; }
+                if (canvasMode === 'edit') {
+                    let closestIndex = -1, minDist = Infinity; const activeSettings = focusedSliceId !== null ? slicesData.find(s => s.id === focusedSliceId).settings : mainState; const activeShape = activeSettings.shape; let targetPendulums = focusedSliceId !== null ? slicesData.find(s => s.id === focusedSliceId).livePendulums : mainPendulums;
+                    const totalDots = targetPendulums.length; const cx = canvas.width / 2; const pad = 50 * scaleRatio; let effectiveHeight = canvas.height; let yOffset = 0; if (canvas.height > canvas.width) { effectiveHeight = canvas.width * (1080 / 1920); yOffset = (canvas.height - effectiveHeight) / 2; }
+                    const hRange = effectiveHeight - (pad * 2); const baseR = canvas.width * 0.33; const topY = yOffset + pad; const bottomY = yOffset + effectiveHeight - pad;
+                    
+                    targetPendulums.forEach((p, index) => {
+                        let px, py;
+                        let effectivePhase = p.phase + (p.phaseOffset || 0);
+                        if (customPath.length > 1) {
+                            const t = (Math.sin(effectivePhase) + 1) / 2; const d = t * totalPathLength; let targetX = customPath[0].x, targetY = customPath[0].y;
+                            for(let i=1; i<pathDistances.length; i++) { if (d <= pathDistances[i] || i === pathDistances.length - 1) { let prevD = pathDistances[i-1], segLen = pathDistances[i] - prevD; let localT = segLen === 0 ? 0 : (d - prevD) / segLen; targetX = customPath[i-1].x + (customPath[i].x - customPath[i-1].x) * localT; targetY = customPath[i-1].y + (customPath[i].y - customPath[i-1].y) * localT; break; } }
+                            px = targetX; py = targetY;
+                        } else {
+                            const normalizedY = totalDots > 1 ? (index / (totalDots - 1)) : 0.5; py = topY + (normalizedY * hRange); let range; let localCx = cx;
+                            if (activeShape === 'v') range = (1 - normalizedY) * baseR; 
+                            else if (activeShape === 'box') range = baseR; 
+                            else if (activeShape === 'hourglass') range = Math.abs((1 - normalizedY) - 0.5) * (baseR * 2); 
+                            else if (activeShape === 'sphere') range = Math.sin((1 - normalizedY) * Math.PI) * baseR;
+                            else if (activeShape === 'rhombus') range = (0.5 - Math.abs(normalizedY - 0.5)) * (baseR * 2);
+                            else if (activeShape === 'slant') { range = baseR * (1 - normalizedY); localCx = cx - (normalizedY * baseR); }
+                            else if (activeShape === 'hexagon') {
+                                if (normalizedY < 0.25) range = baseR * 0.5 + (normalizedY / 0.25) * baseR * 0.5;
+                                else if (normalizedY <= 0.75) range = baseR;
+                                else range = baseR - ((normalizedY - 0.75) / 0.25) * baseR * 0.5;
+                            }
+                            px = localCx + (Math.sin(effectivePhase) * range);
+                        }
+                        const dist = Math.sqrt(Math.pow(clickX - px, 2) + Math.pow(clickY - py, 2)); if (dist < minDist && dist < (45 * scaleRatio)) { minDist = dist; closestIndex = index; }
+                    });
+
+                    if (closestIndex !== -1) {
+                        selectedDotIndex = closestIndex; const p = targetPendulums[selectedDotIndex];
+                        if (!isZenActive) { document.getElementById('dotControlPanel').style.display = 'flex'; document.getElementById('dotIdDisplay').innerText = (closestIndex + 1); document.getElementById('dotMuteCtrl').checked = p.muted; document.getElementById('dotPitchCtrl').value = p.pitchShift; updateReadout('dotPitchCtrl', p.pitchShift); document.getElementById('dotPitchCtrl').dispatchEvent(new Event('input')); let pOff = Math.round((p.phaseOffset||0)*(180/Math.PI)); document.getElementById('dotPhaseCtrl').value = pOff; updateReadout('dotPhaseCtrl', pOff); document.getElementById('dotPhaseCtrl').dispatchEvent(new Event('input')); }
+                    }
+                }
+            });
+
+            initKnobs(); initGrain(bgCanvas.width, bgCanvas.height); forceCanvasWipe(); requestAnimationFrame(draw);
+        });
+    </script>
+</body>
+</html>
