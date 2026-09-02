@@ -71,11 +71,14 @@
         .track-badge { background: var(--accent-pink); color: white; font-weight: 800; font-size: 10px; padding: 5px 8px; border-radius: 4px; text-transform: uppercase; border: 2px solid var(--ink); transition: all 0.2s; font-family: 'Space Grotesk', sans-serif; letter-spacing: 0.5px; }
         .midi-mode-badge { background: var(--screen-bg); color: var(--accent-green); border: 2px solid var(--accent-green); font-size: 9px; font-weight: 800; padding: 5px 8px; border-radius: 4px; font-family: 'JetBrains Mono', monospace; text-transform: uppercase; }
         
-        /* v1.4.3 FIX: Main editor canvas acts as a 16:9 window. 'cover' forces portraits to crop to middle third! */
+        /* v1.4.5 FIX: Native DOM Layering System for Video */
         .canvas-container { width: 100%; aspect-ratio: 16 / 9; overflow: hidden; display: flex; justify-content: center; align-items: center; position: relative; border-radius: 4px; background: #000; }
-        #bgCanvas, #canvas { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 100%; height: 100%; pointer-events: auto; z-index: 0; object-fit: cover; object-position: center; }
-        #canvas { z-index: 1; cursor: pointer; background-color: transparent; }
-        
+        #bgVideo { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 0; display: none; }
+        #videoDimmer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: black; opacity: 0; z-index: 1; pointer-events: none; }
+        #bgCanvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 2; pointer-events: none; transition: mix-blend-mode 0.2s; }
+        #grainCanvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 3; pointer-events: none; }
+        #canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 4; cursor: pointer; background-color: transparent; }
+
         .timeline-bezel-strip { padding: 10px; background: rgba(255,255,255,0.05); border-radius: 4px; border: 1px solid rgba(255,255,255,0.1); width: 100%; box-sizing: border-box; flex: 1; display: flex; flex-direction: column; justify-content: center;}
         .timeline-header { font-size: 10px; font-weight: 700; text-transform: uppercase; color: #888; width: 100%; display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
         .phase-indicator { color: var(--ink); background: var(--accent-green); padding: 4px 8px; border-radius: 4px; font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 800;}
@@ -148,9 +151,9 @@
         .mode-select-pill { flex: 1; padding: 10px 6px; border: 2px solid var(--ink); border-radius: 8px; background: white; font-family: 'JetBrains Mono', monospace; font-size: 9px; font-weight: 800; cursor: pointer; text-align: center; color: var(--ink); transition: all 0.1s; text-transform: uppercase; }
         .mode-select-pill.active { background: var(--ink); color: var(--accent-green); box-shadow: 0 3px 0 rgba(0,0,0,0.2); }
         
-        /* v1.4.3 ZEN MODE FIX: Expands the viewport. 'cover' forces landscape to crop left/right to fill phone! */
+        /* v1.4.5 ZEN MODE FIX: container goes full screen, object-fit natively scales the video AND the canvases perfectly without distorting physics */
         #fullscreenWrapper.zen-active { position: fixed !important; top: 0 !important; left: 0 !important; width: 100vw !important; height: 100vh !important; z-index: 999999 !important; border: none !important; margin: 0 !important; padding: 0 !important; display: flex !important; flex-direction: column !important; justify-content: center !important; align-items: center !important; background-color: var(--screen-bg); }
-        #fullscreenWrapper.zen-active .canvas-container { width: 100vw !important; height: 100vh !important; aspect-ratio: unset; margin: 0; padding: 0; border-radius: 0; border: none; }
+        #fullscreenWrapper.zen-active .canvas-container { width: 100vw !important; height: 100vh !important; max-width: 100vw !important; aspect-ratio: unset; margin: 0; padding: 0; border-radius: 0; border: none; }
         #fullscreenWrapper.zen-active .canvas-toolbar, #fullscreenWrapper.zen-active .track-badge-container, #fullscreenWrapper.zen-active .transport-area { display: none !important; }
         
         .minimal-controls { display: none; position: absolute; bottom: 35px; left: 50%; transform: translateX(-50%); background: rgba(20, 20, 20, 0.75); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); padding: 8px 16px; border-radius: 40px; border: 1px solid rgba(255,255,255,0.15); gap: 12px; opacity: 1; transition: opacity 0.4s ease; z-index: 1000000; width: max-content; max-width: 95vw; flex-wrap: wrap; justify-content: center; }
@@ -166,7 +169,7 @@
         <!-- HEADER -->
         <div class="hardware-panel" style="padding: 12px 16px; padding-bottom: 12px;">
             <div class="app-header" style="margin-bottom: 8px; padding-bottom: 8px;">
-                <div><h1 class="logo-text">HIRA WAVE STUDIO</h1><div class="logo-sub">GENERATIVE POLYRHYTHMIC SEQUENCER • v1.4.4</div></div>
+                <div><h1 class="logo-text">HIRA WAVE STUDIO</h1><div class="logo-sub">GENERATIVE POLYRHYTHMIC SEQUENCER • v1.4.5</div></div>
             </div>
             <div class="track-title-row"><label>TITLE:</label><input type="text" id="trackTitleCtrl" class="track-title-input" value="UNTITLED SEQUENCE"></div>
         </div>
@@ -194,8 +197,13 @@
             </div>
 
             <div class="canvas-container" id="cvsContainer">
+                <!-- v1.4.5: Native DOM Layering replaces pixel math -->
+                <video id="bgVideo" loop muted playsinline crossorigin="anonymous"></video>
+                <div id="videoDimmer"></div>
                 <canvas id="bgCanvas" width="1920" height="1080"></canvas>
+                <canvas id="grainCanvas" width="1920" height="1080"></canvas>
                 <canvas id="canvas" width="1920" height="1080"></canvas>
+                
                 <div id="zenInfoOverlay" class="zen-info-hidden">
                     <div class="zen-title" id="zenTitleText">UNTITLED SEQUENCE</div>
                     <div class="zen-meta">COMPOSED: <span id="zenDateText"></span></div>
@@ -467,16 +475,18 @@
             </div>
         </details>
     </div>
-
-    <video id="bgVideo" loop muted playsinline style="position: absolute; width: 1px; height: 1px; opacity: 0.01; pointer-events: none; z-index: -9999;"></video>
     <script>
-        const bgVideoElement = document.getElementById('bgVideo'); const canvas = document.getElementById('canvas'); const ctx = canvas.getContext('2d'); const bgCanvas = document.getElementById('bgCanvas'); const bgCtx = bgCanvas.getContext('2d'); const sliceList = document.getElementById('sliceList'); const scrubber = document.getElementById('scrubCtrl');
+        const bgVideoElement = document.getElementById('bgVideo'); 
+        const canvas = document.getElementById('canvas'); const ctx = canvas.getContext('2d'); 
+        const bgCanvas = document.getElementById('bgCanvas'); const bgCtx = bgCanvas.getContext('2d'); 
+        const grainCanvas = document.getElementById('grainCanvas'); const grainCtx = grainCanvas.getContext('2d');
+        const sliceList = document.getElementById('sliceList'); const scrubber = document.getElementById('scrubCtrl');
         
         const exportCanvas = document.createElement('canvas'); exportCanvas.id = 'exportCanvas'; exportCanvas.style.position = 'fixed'; exportCanvas.style.top = '0px'; exportCanvas.style.left = '0px'; exportCanvas.style.width = '10px'; exportCanvas.style.height = '10px'; exportCanvas.style.opacity = '0.01'; exportCanvas.style.pointerEvents = 'none'; exportCanvas.style.zIndex = '-9999'; document.body.appendChild(exportCanvas); const exportCtx = exportCanvas.getContext('2d', { alpha: false });
 
         const overlay = document.getElementById('zenInfoOverlay'); const infoBtn = document.getElementById('infoBtn'); const minInfoBtn = document.getElementById('minInfoBtn'); const recTimerText = document.getElementById('recTimer'); const zenRecTimerText = document.getElementById('zenRecTimer');
 
-        let customVideoActive = false; let videoOverlayMode = 1; 
+        let customVideoActive = false; let videoOverlayMode = 1; // 0: OFF, 1: FX ONLY, 2: FULL WASH
         let audioCtx = null; let isPlaying = false; let globalPhaseTime = 0; const FULL_CYCLE_PHASE = 100 * Math.PI; let isScrubbing = false; let audioRecStartTime = 0; let lastFrameTime = performance.now();
         let isZenActive = false; let idleTimer; let focusedSliceId = null; let infoState = 0; let overlayDraggingActive = false; let overlayOffsetX = 0, overlayOffsetY = 0;
 
@@ -752,7 +762,18 @@
             if(!skipGrain) targetCtx.drawImage(grainFrames[Math.floor(t_time * 15) % 4], 0, 0, w, h); 
         }
 
-        function drawVideoCover(c, vid, cw, ch) { const vw = vid.videoWidth; const vh = vid.videoHeight; if(vw === 0 || vh === 0) return; const scale = Math.max(cw / vw, ch / vh); const w = vw * scale; const h = vh * scale; const x = (cw - w) / 2; const y = (ch - h) / 2; c.drawImage(vid, x, y, w, h); }
+        // v1.4.5 FIX: Smart mathematical crop that mirrors CSS object-fit: cover for Instagram exports
+        function drawVideoCover(c, source, cw, ch) { 
+            const vw = source.videoWidth || source.width; 
+            const vh = source.videoHeight || source.height; 
+            if(!vw || !vh) return; 
+            const scale = Math.max(cw / vw, ch / vh); 
+            const w = vw * scale; 
+            const h = vh * scale; 
+            const x = (cw - w) / 2; 
+            const y = (ch - h) / 2; 
+            c.drawImage(source, x, y, w, h); 
+        }
 
         function setZenMode(active) { isZenActive = active; const fullscreenWrapper = document.getElementById('fullscreenWrapper'); const minimalControls = document.getElementById('minimalControls'); if (isZenActive) { fullscreenWrapper.classList.add('zen-active'); if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen(); else if (document.documentElement.webkitRequestFullscreen) document.documentElement.webkitRequestFullscreen(); if (isRecordingAudio) zenRecTimerText.style.display = 'block'; resetIdleTimer(); } else { fullscreenWrapper.classList.remove('zen-active'); minimalControls.classList.remove('hidden'); document.body.classList.remove('idle-cursor'); zenRecTimerText.style.display = 'none'; clearTimeout(idleTimer); if (document.fullscreenElement || document.webkitFullscreenElement) { if (document.exitFullscreen) document.exitFullscreen(); else if (document.webkitExitFullscreen) document.webkitExitFullscreen(); } } }
         function resetIdleTimer() { if (!isZenActive) return; const minimalControls = document.getElementById('minimalControls'); minimalControls.classList.remove('hidden'); document.body.classList.remove('idle-cursor'); clearTimeout(idleTimer); idleTimer = setTimeout(() => { if (isZenActive) { minimalControls.classList.add('hidden'); document.body.classList.add('idle-cursor'); } }, 2500); }
@@ -939,17 +960,20 @@
             if(isRecordingAudio) { const txt = "REC " + formatTimeMs(now - audioRecStartTime); document.getElementById('recTimer').innerText = txt; if(zenRecTimerText) zenRecTimerText.innerText = txt; }
             const t = visualThemes[currentThemeIndex];
             
+            bgVideoElement.style.display = customVideoActive ? 'block' : 'none';
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            bgCtx.clearRect(0, 0, bgCanvas.width, bgCanvas.height);
+            grainCtx.clearRect(0, 0, grainCanvas.width, grainCanvas.height);
+
+            // v1.4.5 FIX: DOM Layering for Video Background
             if(customVideoActive && bgVideoElement.readyState >= 2) {
-                drawVideoCover(bgCtx, bgVideoElement, bgCanvas.width, bgCanvas.height); 
                 let dimVal = parseFloat(document.getElementById('videoDimCtrl').value) || 0; 
-                bgCtx.globalCompositeOperation = 'source-over';
-                bgCtx.fillStyle = `rgba(0,0,0,${dimVal})`; 
-                bgCtx.fillRect(0, 0, bgCanvas.width, bgCanvas.height); 
+                document.getElementById('videoDimmer').style.opacity = dimVal;
                 
                 if (videoOverlayMode > 0) {
                     let themeAlpha = parseFloat(document.getElementById('videoThemeCtrl').value) || 0;
-                    bgCtx.globalAlpha = themeAlpha;
-                    bgCtx.globalCompositeOperation = videoOverlayMode === 1 ? 'screen' : 'overlay';
+                    bgCanvas.style.opacity = themeAlpha;
+                    bgCanvas.style.mixBlendMode = videoOverlayMode === 1 ? 'screen' : 'overlay';
                     
                     let skipBgColor = (videoOverlayMode === 1);
                     if (t.animated === 'linear') { drawLinearMorph(bgCtx, bgCanvas.width, bgCanvas.height, t_time, skipBgColor, true); } 
@@ -967,17 +991,23 @@
                             bgCtx.fillRect(0, 0, bgCanvas.width, bgCanvas.height);
                         }
                     }
-                    bgCtx.globalAlpha = 1.0;
-                    bgCtx.globalCompositeOperation = 'source-over';
+                } else {
+                    bgCanvas.style.opacity = 0;
                 }
 
                 let grainVal = parseFloat(document.getElementById('videoGrainCtrl').value) || 0;
                 if(grainVal > 0) {
-                    bgCtx.globalAlpha = grainVal;
-                    bgCtx.drawImage(grainFrames[Math.floor(t_time * 15) % 4], 0, 0, bgCanvas.width, bgCanvas.height);
-                    bgCtx.globalAlpha = 1.0;
+                    grainCanvas.style.opacity = grainVal;
+                    grainCtx.drawImage(grainFrames[Math.floor(t_time * 15) % 4], 0, 0, grainCanvas.width, grainCanvas.height);
+                } else {
+                    grainCanvas.style.opacity = 0;
                 }
             } else {
+                document.getElementById('videoDimmer').style.opacity = 0;
+                bgCanvas.style.opacity = 1.0;
+                bgCanvas.style.mixBlendMode = 'normal';
+                grainCanvas.style.opacity = 1.0;
+
                 if (t.animated === 'linear') { drawLinearMorph(bgCtx, bgCanvas.width, bgCanvas.height, t_time, false, false); } 
                 else if (t.animated === 'radial') { drawRadialMist(bgCtx, bgCanvas.width, bgCanvas.height, t_time, false, false); } 
                 else if (t.animated === 'dopamine') { drawDopamine(bgCtx, bgCanvas.width, bgCanvas.height, t_time, false, false); }
@@ -1005,16 +1035,10 @@
             if (!isLoopMode) { setsToRender.push({ isMain: true, pendulums: mainPendulums, settings: mainState, pathData: { path: customPath, distances: pathDistances, totalLength: totalPathLength }, opacity: 1.0 }); } 
             else { activeSliceIds.forEach(id => { const slice = slicesData.find(s => s.id === id); if(slice) { setsToRender.push({ isMain: false, sliceRef: slice, pendulums: slice.livePendulums, settings: slice.settings, pathData: slice.pathData, opacity: 1.0 }); } }); }
 
-            // v1.4.3 FIX: Safe Zone Math - Always perfect 1080x1080 square in the center
-            const safeSize = Math.min(canvas.width, canvas.height);
-            const cx = canvas.width / 2; 
-            const pad = 50 * scaleRatio; 
-            const yOffset = (canvas.height - safeSize) / 2; 
-            const hRange = safeSize - (pad * 2); 
-            const baseR = safeSize * 0.33; 
-            const topY = yOffset + pad; 
-            const bottomY = yOffset + safeSize - pad; 
-            const midY = canvas.height / 2;
+            // v1.4.5 FIX: Classic 1920x1080 Aspect Ratio Math (No Stretched Dots)
+            const cx = canvas.width / 2; const pad = 50 * scaleRatio; let effectiveHeight = canvas.height; let yOffset = 0; 
+            if (canvas.height > canvas.width) { effectiveHeight = canvas.width * (1080 / 1920); yOffset = (canvas.height - effectiveHeight) / 2; }
+            const hRange = effectiveHeight - (pad * 2); const baseR = canvas.width * 0.33; const topY = yOffset + pad; const bottomY = yOffset + effectiveHeight - pad; const midY = yOffset + (effectiveHeight / 2);
 
             setsToRender.forEach(set => {
                 const activeShape = set.settings.shape; const triggerMode = set.settings.triggerMode || 'center'; const path = set.pathData.path; const pDists = set.pathData.distances; const pLen = set.pathData.totalLength; const totalDots = set.pendulums.length;
@@ -1116,81 +1140,47 @@
                 });
             });
 
+            // v1.4.5 FIX: Smart mathematical crop that mirrors CSS object-fit: cover for Instagram exports
             if (isExportingSnippet) {
-                let isPortraitExport = canvas.height > canvas.width;
                 exportCtx.clearRect(0, 0, exportCanvas.width, exportCanvas.height);
                 
-                let scaleBg = Math.max(exportCanvas.width / bgCanvas.width, exportCanvas.height / bgCanvas.height); 
-                let dwBg = bgCanvas.width * scaleBg; let dhBg = bgCanvas.height * scaleBg; 
-                let dxBg = (exportCanvas.width - dwBg) / 2; let dyBg = (exportCanvas.height - dhBg) / 2;
-                
-                exportCtx.save();
-                exportCtx.translate(dxBg, dyBg);
-                exportCtx.scale(scaleBg, scaleBg);
-                
                 if(customVideoActive && bgVideoElement.readyState >= 2) {
-                    drawVideoCover(exportCtx, bgVideoElement, bgCanvas.width, bgCanvas.height);
+                    drawVideoCover(exportCtx, bgVideoElement, exportCanvas.width, exportCanvas.height);
                     
                     let dimVal = parseFloat(document.getElementById('videoDimCtrl').value) || 0;
                     exportCtx.globalCompositeOperation = 'source-over';
                     exportCtx.fillStyle = `rgba(0,0,0,${dimVal})`;
-                    exportCtx.fillRect(0, 0, bgCanvas.width, bgCanvas.height);
+                    exportCtx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
                     
                     if (videoOverlayMode > 0) {
                         let themeAlpha = parseFloat(document.getElementById('videoThemeCtrl').value) || 0;
                         exportCtx.globalAlpha = themeAlpha;
                         exportCtx.globalCompositeOperation = videoOverlayMode === 1 ? 'screen' : 'overlay';
-                        
-                        let skipBgColor = (videoOverlayMode === 1);
-                        if (t.animated === 'linear') { drawLinearMorph(exportCtx, bgCanvas.width, bgCanvas.height, t_time, skipBgColor, true); } 
-                        else if (t.animated === 'radial') { drawRadialMist(exportCtx, bgCanvas.width, bgCanvas.height, t_time, skipBgColor, true); } 
-                        else if (t.animated === 'dopamine') { drawDopamine(exportCtx, bgCanvas.width, bgCanvas.height, t_time, skipBgColor, true); }
-                        else if (t.animated === 'prophecy') { drawProphecy(exportCtx, bgCanvas.width, bgCanvas.height, t_time, skipBgColor, true); }
-                        else if (t.animated === 'sunset') { drawSunset(exportCtx, bgCanvas.width, bgCanvas.height, t_time, skipBgColor, true); }
-                        else if (t.animated === 'dusk') { drawDusk(exportCtx, bgCanvas.width, bgCanvas.height, t_time, skipBgColor, true); }
-                        else if (t.animated === 'ukiyoe') { drawUkiyo(exportCtx, bgCanvas.width, bgCanvas.height, t_time, t.colors, skipBgColor, true); }
-                        else if (t.animated === 'resonance') { drawResonance(exportCtx, bgCanvas.width, bgCanvas.height, t_time, skipBgColor, true); }
-                        else if (t.animated === 'eclipse') { drawEclipse(exportCtx, bgCanvas.width, bgCanvas.height, t_time, skipBgColor, true); }
-                        else {
-                            if (videoOverlayMode === 2) {
-                                exportCtx.fillStyle = `rgb(${t.bgRGB})`;
-                                exportCtx.fillRect(0, 0, bgCanvas.width, bgCanvas.height);
-                            }
-                        }
-                        exportCtx.globalAlpha = 1.0;
-                        exportCtx.globalCompositeOperation = 'source-over';
+                        drawVideoCover(exportCtx, bgCanvas, exportCanvas.width, exportCanvas.height);
                     }
 
                     let grainVal = parseFloat(document.getElementById('videoGrainCtrl').value) || 0;
                     if(grainVal > 0) {
                         exportCtx.globalAlpha = grainVal;
-                        exportCtx.drawImage(grainFrames[Math.floor(t_time * 15) % 4], 0, 0, bgCanvas.width, bgCanvas.height);
-                        exportCtx.globalAlpha = 1.0;
+                        exportCtx.globalCompositeOperation = 'source-over';
+                        drawVideoCover(exportCtx, grainCanvas, exportCanvas.width, exportCanvas.height);
                     }
                 } else {
-                    if (t.animated === 'linear') { drawLinearMorph(exportCtx, bgCanvas.width, bgCanvas.height, t_time, false, false); } 
-                    else if (t.animated === 'radial') { drawRadialMist(exportCtx, bgCanvas.width, bgCanvas.height, t_time, false, false); } 
-                    else if (t.animated === 'dopamine') { drawDopamine(exportCtx, bgCanvas.width, bgCanvas.height, t_time, false, false); }
-                    else if (t.animated === 'prophecy') { drawProphecy(exportCtx, bgCanvas.width, bgCanvas.height, t_time, false, false); }
-                    else if (t.animated === 'sunset') { drawSunset(exportCtx, bgCanvas.width, bgCanvas.height, t_time, false, false); }
-                    else if (t.animated === 'dusk') { drawDusk(exportCtx, bgCanvas.width, bgCanvas.height, t_time, false, false); }
-                    else if (t.animated === 'ukiyoe') { drawUkiyo(exportCtx, bgCanvas.width, bgCanvas.height, t_time, t.colors, false, false); }
-                    else if (t.animated === 'resonance') { drawResonance(exportCtx, bgCanvas.width, bgCanvas.height, t_time, false, false); }
-                    else if (t.animated === 'eclipse') { drawEclipse(exportCtx, bgCanvas.width, bgCanvas.height, t_time, false, false); }
-                    else { exportCtx.fillStyle = `rgb(${t.bgRGB})`; exportCtx.fillRect(0, 0, bgCanvas.width, bgCanvas.height); }
+                    exportCtx.globalAlpha = 1.0;
+                    exportCtx.globalCompositeOperation = 'source-over';
+                    drawVideoCover(exportCtx, bgCanvas, exportCanvas.width, exportCanvas.height);
                 }
-                exportCtx.restore();
-
-                let scaleFg = Math.min(exportCanvas.width / canvas.width, exportCanvas.height / canvas.height); 
-                let dwFg = canvas.width * scaleFg; let dhFg = canvas.height * scaleFg; 
-                let dxFg = (exportCanvas.width - dwFg) / 2; let dyFg = (exportCanvas.height - dhFg) / 2;
-                exportCtx.drawImage(canvas, dxFg, dyFg, dwFg, dhFg);
+                
+                exportCtx.globalAlpha = 1.0;
+                exportCtx.globalCompositeOperation = 'source-over';
+                drawVideoCover(exportCtx, canvas, exportCanvas.width, exportCanvas.height);
 
                 if (infoState > 0) {
+                    let isPortraitExport = exportCanvas.height > exportCanvas.width;
                     const titleText = (document.getElementById('trackTitleCtrl').value || 'UNTITLED SEQUENCE').toUpperCase(); const dateText = "COMPOSED: " + document.getElementById('zenDateText').innerText; const brandingText = "MADE WITH HIRAJOSHI WAVE STUDIO";
                     exportCtx.save(); exportCtx.textAlign = "right"; exportCtx.textBaseline = "bottom"; exportCtx.shadowColor = "rgba(0, 0, 0, 0.8)"; exportCtx.shadowBlur = 12; exportCtx.shadowOffsetY = 4; exportCtx.shadowOffsetX = 0;
                     const refWidth = Math.min(exportCanvas.width, exportCanvas.height); const baseFontSize = isPortraitExport ? (refWidth * 0.025) : (refWidth * 0.025); const stateScale = infoState === 1 ? 1 : infoState === 2 ? 1.15 : 1.30; const fScale = stateScale;
-                    let burnX = isPortraitExport ? (dxFg + dwFg - 40) : (exportCanvas.width - 40); let burnY = isPortraitExport ? (dyFg + dhFg + 120) : (exportCanvas.height - 40);
+                    let burnX = exportCanvas.width - 40; let burnY = exportCanvas.height - 40;
                     exportCtx.fillStyle = "white"; exportCtx.globalAlpha = 0.5; exportCtx.font = `600 ${baseFontSize * 0.8 * fScale}px 'JetBrains Mono', monospace`; exportCtx.fillText(brandingText, burnX, burnY);
                     burnY -= (baseFontSize * 1.5 * fScale); exportCtx.globalAlpha = 0.7; exportCtx.font = `600 ${baseFontSize * 0.9 * fScale}px 'JetBrains Mono', monospace`; exportCtx.fillText(dateText, burnX, burnY);
                     burnY -= (baseFontSize * 1.6 * fScale); exportCtx.globalAlpha = 0.9; exportCtx.font = `600 ${baseFontSize * 1.1 * fScale}px 'JetBrains Mono', monospace`; exportCtx.fillText(titleText, burnX, burnY);
@@ -1334,8 +1324,9 @@
             document.getElementById('renderSnippetBtn').addEventListener('click', () => {
                 if (isExportingSnippet) return; initAudio(); if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
                 isRenderCancelled = false; 
-                let isPortraitExport = canvas.height > canvas.width;
-                if (isPortraitExport) { exportCanvas.width = 1080; exportCanvas.height = 1920; } else { exportCanvas.width = 1920; exportCanvas.height = 1080; }
+                
+                // v1.4.5 FIX: Always output true 1080x1920 portrait for Instagram Reels. drawVideoCover handles the smart crop.
+                exportCanvas.width = 1080; exportCanvas.height = 1920;
                 
                 snippetTargetMs = selectedDuration * 1000;
                 let exportFPS = 30; let exportBitrate = 15000000; let ramFlushRate = 1000; 
@@ -1418,17 +1409,6 @@
             document.getElementById('uploadVideoBtn').addEventListener('click', () => { document.getElementById('videoInput').click(); });
             document.getElementById('videoInput').addEventListener('change', function(e) {
                 let file = e.target.files[0]; if(!file) return; let url = URL.createObjectURL(file); bgVideoElement.src = url;
-                bgVideoElement.onloadedmetadata = () => {
-                    if (bgVideoElement.videoHeight > bgVideoElement.videoWidth) {
-                        canvas.width = 1080; canvas.height = 1920;
-                        bgCanvas.width = 1080; bgCanvas.height = 1920;
-                    } else {
-                        canvas.width = 1920; canvas.height = 1080;
-                        bgCanvas.width = 1920; bgCanvas.height = 1080;
-                    }
-                    initGrain(bgCanvas.width, bgCanvas.height);
-                    forceCanvasWipe();
-                };
                 bgVideoElement.play().then(() => { 
                     customVideoActive = true; 
                     document.getElementById('videoStatus').innerText = 'VIDEO ACTIVE'; 
@@ -1442,9 +1422,6 @@
 
             document.getElementById('clearVideoBtn').addEventListener('click', () => { 
                 customVideoActive = false; bgVideoElement.pause(); bgVideoElement.src = ""; 
-                canvas.width = 1920; canvas.height = 1080;
-                bgCanvas.width = 1920; bgCanvas.height = 1080;
-                initGrain(1920, 1080);
                 document.getElementById('videoStatus').innerText = 'NO VIDEO'; 
                 document.getElementById('clearVideoBtn').style.display = 'none'; 
                 document.getElementById('videoExtraControls').style.display = 'none'; 
@@ -1486,17 +1463,13 @@
             overlay.addEventListener('pointermove', (e) => { if (!overlayDraggingActive) return; let newLeft = e.clientX - overlayOffsetX; let newTop = e.clientY - overlayOffsetY; newLeft = Math.max(0, Math.min(newLeft, window.innerWidth - overlay.offsetWidth)); newTop = Math.max(0, Math.min(newTop, window.innerHeight - overlay.offsetHeight)); overlay.style.bottom = 'auto'; overlay.style.right = 'auto'; overlay.style.left = newLeft + 'px'; overlay.style.top = newTop + 'px'; });
             overlay.addEventListener('pointerup', (e) => { overlayDraggingActive = false; overlay.releasePointerCapture(e.pointerId); });
 
-            // v1.4.3 FIX: Update click coordinate math for Action Safe Zone
             canvas.addEventListener('pointerdown', (e) => {
                 const rect = canvas.getBoundingClientRect(); const scaleX = canvas.width / rect.width; const scaleY = canvas.height / rect.height; const clickX = (e.clientX - rect.left) * scaleX; const clickY = (e.clientY - rect.top) * scaleY;
                 if (canvasMode === 'draw') { customPath.push({x: clickX, y: clickY}); recalculatePath(); return; }
                 if (canvasMode === 'edit') {
                     let closestIndex = -1, minDist = Infinity; const activeSettings = focusedSliceId !== null ? slicesData.find(s => s.id === focusedSliceId).settings : mainState; const activeShape = activeSettings.shape; let targetPendulums = focusedSliceId !== null ? slicesData.find(s => s.id === focusedSliceId).livePendulums : mainPendulums;
-                    
-                    const safeSize = Math.min(canvas.width, canvas.height);
-                    const totalDots = targetPendulums.length; const cx = canvas.width / 2; const pad = 50 * scaleRatio; 
-                    const yOffset = (canvas.height - safeSize) / 2; const hRange = safeSize - (pad * 2); 
-                    const baseR = safeSize * 0.33; const topY = yOffset + pad; const bottomY = yOffset + safeSize - pad;
+                    const totalDots = targetPendulums.length; const cx = canvas.width / 2; const pad = 50 * scaleRatio; let effectiveHeight = canvas.height; let yOffset = 0; if (canvas.height > canvas.width) { effectiveHeight = canvas.width * (1080 / 1920); yOffset = (canvas.height - effectiveHeight) / 2; }
+                    const hRange = effectiveHeight - (pad * 2); const baseR = canvas.width * 0.33; const topY = yOffset + pad; const bottomY = yOffset + effectiveHeight - pad;
                     
                     targetPendulums.forEach((p, index) => {
                         let px, py;
