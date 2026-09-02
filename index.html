@@ -168,7 +168,7 @@
         <!-- HEADER -->
         <div class="hardware-panel" style="padding: 12px 16px; padding-bottom: 12px;">
             <div class="app-header" style="margin-bottom: 8px; padding-bottom: 8px;">
-                <div><h1 class="logo-text">HIRA WAVE STUDIO</h1><div class="logo-sub">GENERATIVE POLYRHYTHMIC SEQUENCER • v1.5</div></div>
+                <div><h1 class="logo-text">HIRA WAVE STUDIO</h1><div class="logo-sub">GENERATIVE POLYRHYTHMIC SEQUENCER • v1.5.1</div></div>
             </div>
             <div class="track-title-row"><label>TITLE:</label><input type="text" id="trackTitleCtrl" class="track-title-input" value="UNTITLED SEQUENCE"></div>
         </div>
@@ -760,25 +760,12 @@
             if(!skipGrain) targetCtx.drawImage(grainFrames[Math.floor(t_time * 15) % 4], 0, 0, w, h); 
         }
 
-        // Crops video to completely fill the target box (like object-fit: cover)
+        // Object-fit: cover math for exporting cleanly
         function drawVideoCover(c, source, cw, ch) { 
             const vw = source.videoWidth || source.width; 
             const vh = source.videoHeight || source.height; 
             if(!vw || !vh) return; 
             const scale = Math.max(cw / vw, ch / vh); 
-            const w = vw * scale; 
-            const h = vh * scale; 
-            const x = (cw - w) / 2; 
-            const y = (ch - h) / 2; 
-            c.drawImage(source, x, y, w, h); 
-        }
-
-        // Letterboxes video to fit entirely inside target box without cropping (like object-fit: contain)
-        function drawVideoContain(c, source, cw, ch) { 
-            const vw = source.videoWidth || source.width; 
-            const vh = source.videoHeight || source.height; 
-            if(!vw || !vh) return; 
-            const scale = Math.min(cw / vw, ch / vh); 
             const w = vw * scale; 
             const h = vh * scale; 
             const x = (cw - w) / 2; 
@@ -1181,7 +1168,8 @@
                 
                 exportCtx.globalAlpha = 1.0;
                 exportCtx.globalCompositeOperation = 'source-over';
-                drawVideoContain(exportCtx, canvas, exportCanvas.width, exportCanvas.height);
+                // v1.4.9 FIX: Physics Canvas uses drawVideoCover to avoid squeezing dots during export
+                drawVideoCover(exportCtx, canvas, exportCanvas.width, exportCanvas.height);
 
                 if (infoState > 0) {
                     let isPortraitExport = exportCanvas.height > exportCanvas.width;
@@ -1329,6 +1317,7 @@
 
             document.querySelectorAll('.export-pill').forEach(pill => { pill.addEventListener('click', (e) => { document.querySelectorAll('.export-pill').forEach(p => p.classList.remove('active')); pill.classList.add('active'); const dur = pill.getAttribute('data-dur'); selectedDuration = dur === 'loop' ? 'loop' : parseInt(dur); }); });
 
+            // v1.4.9 FIX: Define explicit export orientation BEFORE the loop and NEVER mutate it inside draw()
             document.getElementById('renderSnippetBtn').addEventListener('click', () => {
                 if (isExportingSnippet) return; initAudio(); if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
                 isRenderCancelled = false; 
@@ -1343,11 +1332,7 @@
                 }
                 
                 snippetTargetMs = selectedDuration * 1000;
-                
-                // v1.5.0 FIX: Restored original encoding settings perfectly. 
-                let exportFPS = customVideoActive ? 30 : 60; 
-                let exportBitrate = customVideoActive ? 8000000 : 16000000; 
-                let ramFlushRate = 1000; 
+                let exportFPS = 30; let exportBitrate = 15000000; let ramFlushRate = 1000; 
                 
                 const videoStream = exportCanvas.captureStream(exportFPS); const audioStream = streamDest.stream;
                 const combinedStream = new MediaStream([ videoStream.getVideoTracks()[0], audioStream.getAudioTracks()[0] ]);
