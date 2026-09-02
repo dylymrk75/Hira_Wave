@@ -168,7 +168,7 @@
         <!-- HEADER -->
         <div class="hardware-panel" style="padding: 12px 16px; padding-bottom: 12px;">
             <div class="app-header" style="margin-bottom: 8px; padding-bottom: 8px;">
-                <div><h1 class="logo-text">HIRA WAVE STUDIO</h1><div class="logo-sub">GENERATIVE POLYRHYTHMIC SEQUENCER • v1.4.9</div></div>
+                <div><h1 class="logo-text">HIRA WAVE STUDIO</h1><div class="logo-sub">GENERATIVE POLYRHYTHMIC SEQUENCER • v1.5</div></div>
             </div>
             <div class="track-title-row"><label>TITLE:</label><input type="text" id="trackTitleCtrl" class="track-title-input" value="UNTITLED SEQUENCE"></div>
         </div>
@@ -473,7 +473,7 @@
             </div>
         </details>
     </div>
-    <script>
+        <script>
         const bgVideoElement = document.getElementById('bgVideo'); 
         const canvas = document.getElementById('canvas'); const ctx = canvas.getContext('2d'); 
         const bgCanvas = document.getElementById('bgCanvas'); const bgCtx = bgCanvas.getContext('2d'); 
@@ -976,7 +976,6 @@
             bgCtx.clearRect(0, 0, bgCanvas.width, bgCanvas.height);
             grainCtx.clearRect(0, 0, grainCanvas.width, grainCanvas.height);
 
-            // Live View Rendering
             if(customVideoActive && bgVideoElement.readyState >= 2) {
                 let dimVal = parseFloat(document.getElementById('videoDimCtrl').value) || 0; 
                 document.getElementById('videoDimmer').style.opacity = dimVal;
@@ -1046,7 +1045,8 @@
             if (!isLoopMode) { setsToRender.push({ isMain: true, pendulums: mainPendulums, settings: mainState, pathData: { path: customPath, distances: pathDistances, totalLength: totalPathLength }, opacity: 1.0 }); } 
             else { activeSliceIds.forEach(id => { const slice = slicesData.find(s => s.id === id); if(slice) { setsToRender.push({ isMain: false, sliceRef: slice, pendulums: slice.livePendulums, settings: slice.settings, pathData: slice.pathData, opacity: 1.0 }); } }); }
 
-            const cx = canvas.width / 2; const pad = 50 * scaleRatio; let effectiveHeight = canvas.height; let yOffset = 0; if (canvas.height > canvas.width) { effectiveHeight = canvas.width * (1080 / 1920); yOffset = (canvas.height - effectiveHeight) / 2; }
+            const cx = canvas.width / 2; const pad = 50 * scaleRatio; let effectiveHeight = canvas.height; let yOffset = 0; 
+            if (canvas.height > canvas.width) { effectiveHeight = canvas.width * (1080 / 1920); yOffset = (canvas.height - effectiveHeight) / 2; }
             const hRange = effectiveHeight - (pad * 2); const baseR = canvas.width * 0.33; const topY = yOffset + pad; const bottomY = yOffset + effectiveHeight - pad; const midY = yOffset + (effectiveHeight / 2);
 
             setsToRender.forEach(set => {
@@ -1149,7 +1149,6 @@
                 });
             });
 
-            // v1.4.9 FIX: Export Engine no longer clears canvas mid-loop. Perfectly crops video without squishing!
             if (isExportingSnippet) {
                 exportCtx.clearRect(0, 0, exportCanvas.width, exportCanvas.height);
                 
@@ -1334,7 +1333,6 @@
                 if (isExportingSnippet) return; initAudio(); if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
                 isRenderCancelled = false; 
                 
-                // v1.4.9 FIX: Set the exact aspect ratio once, immediately. Do NOT change it mid-loop.
                 let isPortraitMode = window.innerHeight > window.innerWidth;
                 if (isPortraitMode) { 
                     exportCanvas.width = 1080; 
@@ -1345,7 +1343,11 @@
                 }
                 
                 snippetTargetMs = selectedDuration * 1000;
-                let exportFPS = 30; let exportBitrate = 15000000; let ramFlushRate = 1000; 
+                
+                // v1.5.0 FIX: Restored original encoding settings perfectly. 
+                let exportFPS = customVideoActive ? 30 : 60; 
+                let exportBitrate = customVideoActive ? 8000000 : 16000000; 
+                let ramFlushRate = 1000; 
                 
                 const videoStream = exportCanvas.captureStream(exportFPS); const audioStream = streamDest.stream;
                 const combinedStream = new MediaStream([ videoStream.getVideoTracks()[0], audioStream.getAudioTracks()[0] ]);
