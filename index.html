@@ -71,14 +71,11 @@
         .track-badge { background: var(--accent-pink); color: white; font-weight: 800; font-size: 10px; padding: 5px 8px; border-radius: 4px; text-transform: uppercase; border: 2px solid var(--ink); transition: all 0.2s; font-family: 'Space Grotesk', sans-serif; letter-spacing: 0.5px; }
         .midi-mode-badge { background: var(--screen-bg); color: var(--accent-green); border: 2px solid var(--accent-green); font-size: 9px; font-weight: 800; padding: 5px 8px; border-radius: 4px; font-family: 'JetBrains Mono', monospace; text-transform: uppercase; }
         
-        /* v1.4.7 FIX: Physics Canvas (#canvas) uses CONTAIN so it never zooms or stretches. Video uses COVER. */
+        /* v1.6.0 STABLE REVERT: Classic CSS Object-Fit layering */
         .canvas-container { width: 100%; aspect-ratio: 16 / 9; overflow: hidden; display: flex; justify-content: center; align-items: center; position: relative; border-radius: 4px; background: #000; }
-        #bgVideo { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 0; display: none; }
-        #videoDimmer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: black; opacity: 0; z-index: 1; pointer-events: none; }
-        #bgCanvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 2; pointer-events: none; transition: mix-blend-mode 0.2s; }
-        #grainCanvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 3; pointer-events: none; }
-        #canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: contain; z-index: 4; cursor: pointer; background-color: transparent; }
-
+        #bgCanvas, #canvas { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 100%; height: 100%; pointer-events: auto; z-index: 0; object-fit: cover; object-position: center; }
+        #canvas { z-index: 1; cursor: pointer; background-color: transparent; }
+        
         .timeline-bezel-strip { padding: 10px; background: rgba(255,255,255,0.05); border-radius: 4px; border: 1px solid rgba(255,255,255,0.1); width: 100%; box-sizing: border-box; flex: 1; display: flex; flex-direction: column; justify-content: center;}
         .timeline-header { font-size: 10px; font-weight: 700; text-transform: uppercase; color: #888; width: 100%; display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
         .phase-indicator { color: var(--ink); background: var(--accent-green); padding: 4px 8px; border-radius: 4px; font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 800;}
@@ -153,7 +150,6 @@
         
         #fullscreenWrapper.zen-active { position: fixed !important; top: 0 !important; left: 0 !important; width: 100vw !important; height: 100vh !important; z-index: 999999 !important; border: none !important; margin: 0 !important; padding: 0 !important; display: flex !important; flex-direction: column !important; justify-content: center !important; align-items: center !important; background-color: var(--screen-bg); }
         #fullscreenWrapper.zen-active .canvas-container { width: 100vw !important; height: 100vh !important; max-width: 100vw !important; aspect-ratio: unset; margin: 0; padding: 0; border-radius: 0; border: none; }
-        #fullscreenWrapper.zen-active .canvas-toolbar, #fullscreenWrapper.zen-active .track-badge-container, #fullscreenWrapper.zen-active .transport-area { display: none !important; }
         
         .minimal-controls { display: none; position: absolute; bottom: 35px; left: 50%; transform: translateX(-50%); background: rgba(20, 20, 20, 0.75); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); padding: 8px 16px; border-radius: 40px; border: 1px solid rgba(255,255,255,0.15); gap: 12px; opacity: 1; transition: opacity 0.4s ease; z-index: 1000000; width: max-content; max-width: 95vw; flex-wrap: wrap; justify-content: center; }
         #fullscreenWrapper.zen-active .minimal-controls { display: flex; }
@@ -168,7 +164,7 @@
         <!-- HEADER -->
         <div class="hardware-panel" style="padding: 12px 16px; padding-bottom: 12px;">
             <div class="app-header" style="margin-bottom: 8px; padding-bottom: 8px;">
-                <div><h1 class="logo-text">HIRA WAVE STUDIO</h1><div class="logo-sub">GENERATIVE POLYRHYTHMIC SEQUENCER • v1.6</div></div>
+                <div><h1 class="logo-text">HIRA WAVE STUDIO</h1><div class="logo-sub">GENERATIVE POLYRHYTHMIC SEQUENCER • v1.6.0</div></div>
             </div>
             <div class="track-title-row"><label>TITLE:</label><input type="text" id="trackTitleCtrl" class="track-title-input" value="UNTITLED SEQUENCE"></div>
         </div>
@@ -196,10 +192,7 @@
             </div>
 
             <div class="canvas-container" id="cvsContainer">
-                <video id="bgVideo" loop muted playsinline crossorigin="anonymous"></video>
-                <div id="videoDimmer"></div>
                 <canvas id="bgCanvas" width="1920" height="1080"></canvas>
-                <canvas id="grainCanvas" width="1920" height="1080"></canvas>
                 <canvas id="canvas" width="1920" height="1080"></canvas>
                 
                 <div id="zenInfoOverlay" class="zen-info-hidden">
@@ -473,6 +466,8 @@
             </div>
         </details>
     </div>
+
+    <video id="bgVideo" loop muted playsinline style="position: absolute; width: 1px; height: 1px; opacity: 0.01; pointer-events: none; z-index: -9999;"></video>
     <script>
         const bgVideoElement = document.getElementById('bgVideo'); const canvas = document.getElementById('canvas'); const ctx = canvas.getContext('2d'); const bgCanvas = document.getElementById('bgCanvas'); const bgCtx = bgCanvas.getContext('2d'); const sliceList = document.getElementById('sliceList'); const scrubber = document.getElementById('scrubCtrl');
         
@@ -546,31 +541,14 @@
             
             if (type === 'brown') {
                 let lastOut = 0; 
-                for (let i = 0; i < bufferSize; i++) { 
-                    let white = Math.random() * 2 - 1; 
-                    output[i] = (lastOut + (0.02 * white)) / 1.02; 
-                    lastOut = output[i]; 
-                    output[i] *= 3.5; 
-                }
+                for (let i = 0; i < bufferSize; i++) { let white = Math.random() * 2 - 1; output[i] = (lastOut + (0.02 * white)) / 1.02; lastOut = output[i]; output[i] *= 3.5; }
             } else if (type === 'pink') {
                 let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
-                for (let i = 0; i < bufferSize; i++) { 
-                    let white = Math.random() * 2 - 1; 
-                    b0 = 0.99886 * b0 + white * 0.0555179; b1 = 0.99332 * b1 + white * 0.0750759; b2 = 0.96900 * b2 + white * 0.1538520; b3 = 0.86650 * b3 + white * 0.3104856; b4 = 0.55000 * b4 + white * 0.5329522; b5 = -0.7616 * b5 - white * 0.0168980; 
-                    output[i] = b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362; output[i] *= 0.11; b6 = white * 0.115926; 
-                }
+                for (let i = 0; i < bufferSize; i++) { let white = Math.random() * 2 - 1; b0 = 0.99886 * b0 + white * 0.0555179; b1 = 0.99332 * b1 + white * 0.0750759; b2 = 0.96900 * b2 + white * 0.1538520; b3 = 0.86650 * b3 + white * 0.3104856; b4 = 0.55000 * b4 + white * 0.5329522; b5 = -0.7616 * b5 - white * 0.0168980; output[i] = b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362; output[i] *= 0.11; b6 = white * 0.115926; }
             } else if (type === 'vinyl') {
-                for (let i = 0; i < bufferSize; i++) { 
-                    if (Math.random() < 0.0003) output[i] = (Math.random() * 2 - 1) * 0.8; 
-                    else output[i] = (Math.random() * 2 - 1) * 0.03; 
-                }
+                for (let i = 0; i < bufferSize; i++) { if (Math.random() < 0.0003) output[i] = (Math.random() * 2 - 1) * 0.8; else output[i] = (Math.random() * 2 - 1) * 0.03; }
             } else if (type === 'crackle') {
-                for (let i = 0; i < bufferSize; i++) { 
-                    let rand = Math.random(); 
-                    if (rand < 0.00005) output[i] = (Math.random() * 2 - 1) * 0.9; 
-                    else if (rand < 0.0005) output[i] = (Math.random() * 2 - 1) * 0.25; 
-                    else output[i] = 0; 
-                }
+                for (let i = 0; i < bufferSize; i++) { let rand = Math.random(); if (rand < 0.00005) output[i] = (Math.random() * 2 - 1) * 0.9; else if (rand < 0.0005) output[i] = (Math.random() * 2 - 1) * 0.25; else output[i] = 0; }
             }
             return buffer;
         }
@@ -615,13 +593,9 @@
                 else pill.classList.remove('active');
             });
             const badge = document.getElementById('midiModeDisplay');
-            if (mode === 'browser') {
-                badge.innerText = 'AUDIO: BROWSER'; badge.style.color = 'var(--accent-green)'; badge.style.borderColor = 'var(--accent-green)';
-            } else if (mode === 'daw') {
-                badge.innerText = 'MIDI: DAW (SILENT)'; badge.style.color = 'var(--accent-pink)'; badge.style.borderColor = 'var(--accent-pink)';
-            } else if (mode === 'hybrid') {
-                badge.innerText = 'MODE: HYBRID'; badge.style.color = 'var(--warning-yellow)'; badge.style.borderColor = 'var(--warning-yellow)';
-            }
+            if (mode === 'browser') { badge.innerText = 'AUDIO: BROWSER'; badge.style.color = 'var(--accent-green)'; badge.style.borderColor = 'var(--accent-green)'; } 
+            else if (mode === 'daw') { badge.innerText = 'MIDI: DAW (SILENT)'; badge.style.color = 'var(--accent-pink)'; badge.style.borderColor = 'var(--accent-pink)'; } 
+            else if (mode === 'hybrid') { badge.innerText = 'MODE: HYBRID'; badge.style.color = 'var(--warning-yellow)'; badge.style.borderColor = 'var(--warning-yellow)'; }
         }
 
         function playNote(p, index, settings, fadeAlpha = 1.0) {
@@ -965,20 +939,17 @@
             if(isRecordingAudio) { const txt = "REC " + formatTimeMs(now - audioRecStartTime); document.getElementById('recTimer').innerText = txt; if(zenRecTimerText) zenRecTimerText.innerText = txt; }
             const t = visualThemes[currentThemeIndex];
             
-            bgVideoElement.style.display = customVideoActive ? 'block' : 'none';
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            bgCtx.clearRect(0, 0, bgCanvas.width, bgCanvas.height);
-            grainCtx.clearRect(0, 0, grainCanvas.width, grainCanvas.height);
-
-            // Live View Rendering
             if(customVideoActive && bgVideoElement.readyState >= 2) {
+                drawVideoCover(bgCtx, bgVideoElement, bgCanvas.width, bgCanvas.height); 
                 let dimVal = parseFloat(document.getElementById('videoDimCtrl').value) || 0; 
-                document.getElementById('videoDimmer').style.opacity = dimVal;
+                bgCtx.globalCompositeOperation = 'source-over';
+                bgCtx.fillStyle = `rgba(0,0,0,${dimVal})`; 
+                bgCtx.fillRect(0, 0, bgCanvas.width, bgCanvas.height); 
                 
                 if (videoOverlayMode > 0) {
                     let themeAlpha = parseFloat(document.getElementById('videoThemeCtrl').value) || 0;
-                    bgCanvas.style.opacity = themeAlpha;
-                    bgCanvas.style.mixBlendMode = videoOverlayMode === 1 ? 'screen' : 'overlay';
+                    bgCtx.globalAlpha = themeAlpha;
+                    bgCtx.globalCompositeOperation = videoOverlayMode === 1 ? 'screen' : 'overlay';
                     
                     let skipBgColor = (videoOverlayMode === 1);
                     if (t.animated === 'linear') { drawLinearMorph(bgCtx, bgCanvas.width, bgCanvas.height, t_time, skipBgColor, true); } 
@@ -996,23 +967,17 @@
                             bgCtx.fillRect(0, 0, bgCanvas.width, bgCanvas.height);
                         }
                     }
-                } else {
-                    bgCanvas.style.opacity = 0;
+                    bgCtx.globalAlpha = 1.0;
+                    bgCtx.globalCompositeOperation = 'source-over';
                 }
 
                 let grainVal = parseFloat(document.getElementById('videoGrainCtrl').value) || 0;
                 if(grainVal > 0) {
-                    grainCanvas.style.opacity = grainVal;
-                    grainCtx.drawImage(grainFrames[Math.floor(t_time * 15) % 4], 0, 0, grainCanvas.width, grainCanvas.height);
-                } else {
-                    grainCanvas.style.opacity = 0;
+                    bgCtx.globalAlpha = grainVal;
+                    bgCtx.drawImage(grainFrames[Math.floor(t_time * 15) % 4], 0, 0, bgCanvas.width, bgCanvas.height);
+                    bgCtx.globalAlpha = 1.0;
                 }
             } else {
-                document.getElementById('videoDimmer').style.opacity = 0;
-                bgCanvas.style.opacity = 1.0;
-                bgCanvas.style.mixBlendMode = 'normal';
-                grainCanvas.style.opacity = 1.0;
-
                 if (t.animated === 'linear') { drawLinearMorph(bgCtx, bgCanvas.width, bgCanvas.height, t_time, false, false); } 
                 else if (t.animated === 'radial') { drawRadialMist(bgCtx, bgCanvas.width, bgCanvas.height, t_time, false, false); } 
                 else if (t.animated === 'dopamine') { drawDopamine(bgCtx, bgCanvas.width, bgCanvas.height, t_time, false, false); }
@@ -1144,7 +1109,6 @@
             });
 
             if (isExportingSnippet) {
-                let isPortraitExport = window.innerHeight > window.innerWidth;
                 exportCtx.clearRect(0, 0, exportCanvas.width, exportCanvas.height);
                 
                 let scaleBg = Math.max(exportCanvas.width / bgCanvas.width, exportCanvas.height / bgCanvas.height); 
@@ -1167,14 +1131,32 @@
                         let themeAlpha = parseFloat(document.getElementById('videoThemeCtrl').value) || 0;
                         exportCtx.globalAlpha = themeAlpha;
                         exportCtx.globalCompositeOperation = videoOverlayMode === 1 ? 'screen' : 'overlay';
-                        drawVideoCover(exportCtx, bgCanvas, exportCanvas.width, exportCanvas.height);
+                        
+                        let skipBgColor = (videoOverlayMode === 1);
+                        if (t.animated === 'linear') { drawLinearMorph(exportCtx, bgCanvas.width, bgCanvas.height, t_time, skipBgColor, true); } 
+                        else if (t.animated === 'radial') { drawRadialMist(exportCtx, bgCanvas.width, bgCanvas.height, t_time, skipBgColor, true); } 
+                        else if (t.animated === 'dopamine') { drawDopamine(exportCtx, bgCanvas.width, bgCanvas.height, t_time, skipBgColor, true); }
+                        else if (t.animated === 'prophecy') { drawProphecy(exportCtx, bgCanvas.width, bgCanvas.height, t_time, skipBgColor, true); }
+                        else if (t.animated === 'sunset') { drawSunset(exportCtx, bgCanvas.width, bgCanvas.height, t_time, skipBgColor, true); }
+                        else if (t.animated === 'dusk') { drawDusk(exportCtx, bgCanvas.width, bgCanvas.height, t_time, skipBgColor, true); }
+                        else if (t.animated === 'ukiyoe') { drawUkiyo(exportCtx, bgCanvas.width, bgCanvas.height, t_time, t.colors, skipBgColor, true); }
+                        else if (t.animated === 'resonance') { drawResonance(exportCtx, bgCanvas.width, bgCanvas.height, t_time, skipBgColor, true); }
+                        else if (t.animated === 'eclipse') { drawEclipse(exportCtx, bgCanvas.width, bgCanvas.height, t_time, skipBgColor, true); }
+                        else {
+                            if (videoOverlayMode === 2) {
+                                exportCtx.fillStyle = `rgb(${t.bgRGB})`;
+                                exportCtx.fillRect(0, 0, bgCanvas.width, bgCanvas.height);
+                            }
+                        }
+                        exportCtx.globalAlpha = 1.0;
+                        exportCtx.globalCompositeOperation = 'source-over';
                     }
 
                     let grainVal = parseFloat(document.getElementById('videoGrainCtrl').value) || 0;
                     if(grainVal > 0) {
                         exportCtx.globalAlpha = grainVal;
-                        exportCtx.globalCompositeOperation = 'source-over';
-                        drawVideoCover(exportCtx, grainCanvas, exportCanvas.width, exportCanvas.height);
+                        exportCtx.drawImage(grainFrames[Math.floor(t_time * 15) % 4], 0, 0, bgCanvas.width, bgCanvas.height);
+                        exportCtx.globalAlpha = 1.0;
                     }
                 } else {
                     if (t.animated === 'linear') { drawLinearMorph(exportCtx, bgCanvas.width, bgCanvas.height, t_time, false, false); } 
@@ -1196,6 +1178,7 @@
                 exportCtx.drawImage(canvas, dxFg, dyFg, dwFg, dhFg);
 
                 if (infoState > 0) {
+                    let isPortraitExport = exportCanvas.height > exportCanvas.width;
                     const titleText = (document.getElementById('trackTitleCtrl').value || 'UNTITLED SEQUENCE').toUpperCase(); const dateText = "COMPOSED: " + document.getElementById('zenDateText').innerText; const brandingText = "MADE WITH HIRAJOSHI WAVE STUDIO";
                     exportCtx.save(); exportCtx.textAlign = "right"; exportCtx.textBaseline = "bottom"; exportCtx.shadowColor = "rgba(0, 0, 0, 0.8)"; exportCtx.shadowBlur = 12; exportCtx.shadowOffsetY = 4; exportCtx.shadowOffsetX = 0;
                     const refWidth = Math.min(exportCanvas.width, exportCanvas.height); const baseFontSize = isPortraitExport ? (refWidth * 0.025) : (refWidth * 0.025); const stateScale = infoState === 1 ? 1 : infoState === 2 ? 1.15 : 1.30; const fScale = stateScale;
@@ -1342,7 +1325,8 @@
 
             document.getElementById('renderSnippetBtn').addEventListener('click', () => {
                 if (isExportingSnippet) return; initAudio(); if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
-                isRenderCancelled = false; let isPortraitExport = window.innerHeight > window.innerWidth;
+                isRenderCancelled = false; 
+                let isPortraitExport = canvas.height > canvas.width;
                 if (isPortraitExport) { exportCanvas.width = 1080; exportCanvas.height = 1920; } else { exportCanvas.width = 1920; exportCanvas.height = 1080; }
                 
                 snippetTargetMs = selectedDuration * 1000;
@@ -1427,10 +1411,14 @@
             document.getElementById('videoInput').addEventListener('change', function(e) {
                 let file = e.target.files[0]; if(!file) return; let url = URL.createObjectURL(file); bgVideoElement.src = url;
                 bgVideoElement.onloadedmetadata = () => {
-                    canvas.width = 1920; canvas.height = 1080;
-                    bgCanvas.width = 1920; bgCanvas.height = 1080;
-                    grainCanvas.width = 1920; grainCanvas.height = 1080;
-                    initGrain(1920, 1080);
+                    if (bgVideoElement.videoHeight > bgVideoElement.videoWidth) {
+                        canvas.width = 1080; canvas.height = 1920;
+                        bgCanvas.width = 1080; bgCanvas.height = 1920;
+                    } else {
+                        canvas.width = 1920; canvas.height = 1080;
+                        bgCanvas.width = 1920; bgCanvas.height = 1080;
+                    }
+                    initGrain(bgCanvas.width, bgCanvas.height);
                     forceCanvasWipe();
                 };
                 bgVideoElement.play().then(() => { 
@@ -1448,7 +1436,6 @@
                 customVideoActive = false; bgVideoElement.pause(); bgVideoElement.src = ""; 
                 canvas.width = 1920; canvas.height = 1080;
                 bgCanvas.width = 1920; bgCanvas.height = 1080;
-                grainCanvas.width = 1920; grainCanvas.height = 1080;
                 initGrain(1920, 1080);
                 document.getElementById('videoStatus').innerText = 'NO VIDEO'; 
                 document.getElementById('clearVideoBtn').style.display = 'none'; 
