@@ -168,7 +168,7 @@
         <!-- HEADER -->
         <div class="hardware-panel" style="padding: 12px 16px; padding-bottom: 12px;">
             <div class="app-header" style="margin-bottom: 8px; padding-bottom: 8px;">
-                <div><h1 class="logo-text">HIRA WAVE STUDIO</h1><div class="logo-sub">GENERATIVE POLYRHYTHMIC SEQUENCER • v1.5.2</div></div>
+                <div><h1 class="logo-text">HIRA WAVE STUDIO</h1><div class="logo-sub">GENERATIVE POLYRHYTHMIC SEQUENCER • v1.4.7</div></div>
             </div>
             <div class="track-title-row"><label>TITLE:</label><input type="text" id="trackTitleCtrl" class="track-title-input" value="UNTITLED SEQUENCE"></div>
         </div>
@@ -480,7 +480,6 @@
         const grainCanvas = document.getElementById('grainCanvas'); const grainCtx = grainCanvas.getContext('2d');
         const sliceList = document.getElementById('sliceList'); const scrubber = document.getElementById('scrubCtrl');
         
-        // Export Canvas is initialized globally but will be aggressively recreated on export to defeat iOS Safari aspect ratio bugs
         let exportCanvas = document.createElement('canvas'); exportCanvas.id = 'exportCanvas'; exportCanvas.style.position = 'fixed'; exportCanvas.style.top = '-9999px'; exportCanvas.style.left = '-9999px'; document.body.appendChild(exportCanvas); let exportCtx = exportCanvas.getContext('2d', { alpha: false });
 
         const overlay = document.getElementById('zenInfoOverlay'); const infoBtn = document.getElementById('infoBtn'); const minInfoBtn = document.getElementById('minInfoBtn'); const recTimerText = document.getElementById('recTimer'); const zenRecTimerText = document.getElementById('zenRecTimer');
@@ -488,7 +487,7 @@
         let customVideoActive = false; let videoOverlayMode = 1; 
         let audioCtx = null; let isPlaying = false; let globalPhaseTime = 0; const FULL_CYCLE_PHASE = 100 * Math.PI; let isScrubbing = false; let audioRecStartTime = 0; let lastFrameTime = performance.now();
         let isZenActive = false; let idleTimer; let focusedSliceId = null; let infoState = 0; let overlayDraggingActive = false; let overlayOffsetX = 0, overlayOffsetY = 0;
-        let lastExportFrameTime = 0; // Throttle timer for export
+        let lastExportFrameTime = 0; 
 
         let appAudioMode = 'browser'; 
 
@@ -762,7 +761,7 @@
             if(!skipGrain) targetCtx.drawImage(grainFrames[Math.floor(t_time * 15) % 4], 0, 0, w, h); 
         }
 
-        // v1.5.2 FIX: Hardware-accelerated 9-slice cropping for zero processor lag
+        // v1.5.3 FIX: Hardware-accelerated 9-slice cropping for zero processor lag
         function drawVideoCover(c, source, cw, ch) { 
             const vw = source.videoWidth || source.width; 
             const vh = source.videoHeight || source.height; 
@@ -775,7 +774,7 @@
             c.drawImage(source, sx, sy, sw, sh, 0, 0, cw, ch); 
         }
 
-        // v1.5.2 FIX: Hardware-accelerated 9-slice containment
+        // v1.5.3 FIX: Hardware-accelerated 9-slice containment
         function drawVideoContain(c, source, cw, ch) { 
             const vw = source.videoWidth || source.width; 
             const vh = source.videoHeight || source.height; 
@@ -1152,7 +1151,7 @@
                 });
             });
 
-            // v1.5.2 FIX: 30FPS Throttle. Uses hardware slice scaling to prevent UI lag.
+            // v1.5.3 FIX: Export respects Video File Orientation directly + hardware 9-slice + throttle
             if (isExportingSnippet) {
                 if (now - lastExportFrameTime >= 33.33) {
                     lastExportFrameTime = now;
@@ -1336,7 +1335,7 @@
 
             document.querySelectorAll('.export-pill').forEach(pill => { pill.addEventListener('click', (e) => { document.querySelectorAll('.export-pill').forEach(p => p.classList.remove('active')); pill.classList.add('active'); const dur = pill.getAttribute('data-dur'); selectedDuration = dur === 'loop' ? 'loop' : parseInt(dur); }); });
 
-            // v1.5.2 FIX: Complete destruction and explicit DOM recreation of the export canvas kills the iOS squish bug.
+            // v1.5.3 FIX: Let the uploaded video perfectly dictate the export orientation.
             document.getElementById('renderSnippetBtn').addEventListener('click', () => {
                 if (isExportingSnippet) return; initAudio(); if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
                 isRenderCancelled = false; 
@@ -1350,7 +1349,14 @@
                 exportCanvas.style.top = '-9999px';
                 exportCanvas.style.left = '-9999px';
                 
-                let isPortraitMode = isZenActive;
+                // If a video is playing, force the export to match the video's aspect perfectly
+                let isPortraitMode = false;
+                if (customVideoActive && bgVideoElement.readyState >= 2) {
+                    isPortraitMode = (bgVideoElement.videoHeight > bgVideoElement.videoWidth);
+                } else {
+                    isPortraitMode = window.innerHeight > window.innerWidth;
+                }
+
                 let expW = isPortraitMode ? 1080 : 1920;
                 let expH = isPortraitMode ? 1920 : 1080;
                 
