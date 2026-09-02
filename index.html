@@ -162,7 +162,7 @@
         <!-- HEADER -->
         <div class="hardware-panel" style="padding: 12px 16px; padding-bottom: 12px;">
             <div class="app-header" style="margin-bottom: 8px; padding-bottom: 8px;">
-                <div><h1 class="logo-text">HIRA WAVE STUDIO</h1><div class="logo-sub">GENERATIVE POLYRHYTHMIC SEQUENCER • v1.4 (restored)</div></div>
+                <div><h1 class="logo-text">HIRA WAVE STUDIO</h1><div class="logo-sub">GENERATIVE POLYRHYTHMIC SEQUENCER • v2</div></div>
             </div>
             <div class="track-title-row"><label>TITLE:</label><input type="text" id="trackTitleCtrl" class="track-title-input" value="UNTITLED SEQUENCE"></div>
         </div>
@@ -749,7 +749,44 @@
             if(!skipGrain) targetCtx.drawImage(grainFrames[Math.floor(t_time * 15) % 4], 0, 0, w, h); 
         }
 
-        function drawVideoCover(c, vid, cw, ch) { const vw = vid.videoWidth; const vh = vid.videoHeight; if(vw === 0 || vh === 0) return; const scale = Math.max(cw / vw, ch / vh); const w = vw * scale; const h = vh * scale; const x = (cw - w) / 2; const y = (ch - h) / 2; c.drawImage(vid, x, y, w, h); }
+        function renderThemeToCtx(ctx, w, h, t_time, skipBg, skipGrain, theme) {
+            if (theme.animated === 'linear') { drawLinearMorph(ctx, w, h, t_time, skipBg, skipGrain); } 
+            else if (theme.animated === 'radial') { drawRadialMist(ctx, w, h, t_time, skipBg, skipGrain); } 
+            else if (theme.animated === 'dopamine') { drawDopamine(ctx, w, h, t_time, skipBg, skipGrain); }
+            else if (theme.animated === 'prophecy') { drawProphecy(ctx, w, h, t_time, skipBg, skipGrain); }
+            else if (theme.animated === 'sunset') { drawSunset(ctx, w, h, t_time, skipBg, skipGrain); }
+            else if (theme.animated === 'dusk') { drawDusk(ctx, w, h, t_time, skipBg, skipGrain); }
+            else if (theme.animated === 'ukiyoe') { drawUkiyo(ctx, w, h, t_time, theme.colors, skipBg, skipGrain); }
+            else if (theme.animated === 'resonance') { drawResonance(ctx, w, h, t_time, skipBg, skipGrain); }
+            else if (theme.animated === 'eclipse') { drawEclipse(ctx, w, h, t_time, skipBg, skipGrain); }
+            else { if (!skipBg) { ctx.fillStyle = `rgb(${theme.bgRGB})`; ctx.fillRect(0, 0, w, h); } }
+        }
+
+        // Hardware-accelerated integer cropping for video background (COVER)
+        function drawVideoCover(c, source, cw, ch) { 
+            const vw = source.videoWidth || source.width; 
+            const vh = source.videoHeight || source.height; 
+            if(!vw || !vh) return; 
+            const sourceRatio = vw / vh;
+            const targetRatio = cw / ch;
+            let sx = 0, sy = 0, sw = vw, sh = vh;
+            if (sourceRatio > targetRatio) { sw = vh * targetRatio; sx = (vw - sw) / 2; } 
+            else { sh = vw / targetRatio; sy = (vh - sh) / 2; }
+            c.drawImage(source, Math.round(sx), Math.round(sy), Math.round(sw), Math.round(sh), 0, 0, Math.round(cw), Math.round(ch)); 
+        }
+
+        // Hardware-accelerated integer scaling for physics dots (CONTAIN)
+        function drawVideoContain(c, source, cw, ch) { 
+            const vw = source.videoWidth || source.width; 
+            const vh = source.videoHeight || source.height; 
+            if(!vw || !vh) return; 
+            const sourceRatio = vw / vh;
+            const targetRatio = cw / ch;
+            let dx = 0, dy = 0, dw = cw, dh = ch;
+            if (sourceRatio > targetRatio) { dh = cw / sourceRatio; dy = (ch - dh) / 2; } 
+            else { dw = ch * sourceRatio; dx = (cw - dw) / 2; }
+            c.drawImage(source, 0, 0, vw, vh, Math.round(dx), Math.round(dy), Math.round(dw), Math.round(dh)); 
+        }
 
         function setZenMode(active) { isZenActive = active; const fullscreenWrapper = document.getElementById('fullscreenWrapper'); const minimalControls = document.getElementById('minimalControls'); if (isZenActive) { fullscreenWrapper.classList.add('zen-active'); if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen(); else if (document.documentElement.webkitRequestFullscreen) document.documentElement.webkitRequestFullscreen(); if (isRecordingAudio) zenRecTimerText.style.display = 'block'; resetIdleTimer(); } else { fullscreenWrapper.classList.remove('zen-active'); minimalControls.classList.remove('hidden'); document.body.classList.remove('idle-cursor'); zenRecTimerText.style.display = 'none'; clearTimeout(idleTimer); if (document.fullscreenElement || document.webkitFullscreenElement) { if (document.exitFullscreen) document.exitFullscreen(); else if (document.webkitExitFullscreen) document.webkitExitFullscreen(); } } }
         function resetIdleTimer() { if (!isZenActive) return; const minimalControls = document.getElementById('minimalControls'); minimalControls.classList.remove('hidden'); document.body.classList.remove('idle-cursor'); clearTimeout(idleTimer); idleTimer = setTimeout(() => { if (isZenActive) { minimalControls.classList.add('hidden'); document.body.classList.add('idle-cursor'); } }, 2500); }
@@ -936,6 +973,10 @@
             if(isRecordingAudio) { const txt = "REC " + formatTimeMs(now - audioRecStartTime); document.getElementById('recTimer').innerText = txt; if(zenRecTimerText) zenRecTimerText.innerText = txt; }
             const t = visualThemes[currentThemeIndex];
             
+            // Clean slate for main loop
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            bgCtx.clearRect(0, 0, bgCanvas.width, bgCanvas.height);
+
             if(customVideoActive && bgVideoElement.readyState >= 2) {
                 drawVideoCover(bgCtx, bgVideoElement, bgCanvas.width, bgCanvas.height); 
                 let dimVal = parseFloat(document.getElementById('videoDimCtrl').value) || 0; 
@@ -947,23 +988,8 @@
                     let themeAlpha = parseFloat(document.getElementById('videoThemeCtrl').value) || 0;
                     bgCtx.globalAlpha = themeAlpha;
                     bgCtx.globalCompositeOperation = videoOverlayMode === 1 ? 'screen' : 'overlay';
-                    
                     let skipBgColor = (videoOverlayMode === 1);
-                    if (t.animated === 'linear') { drawLinearMorph(bgCtx, bgCanvas.width, bgCanvas.height, t_time, skipBgColor, true); } 
-                    else if (t.animated === 'radial') { drawRadialMist(bgCtx, bgCanvas.width, bgCanvas.height, t_time, skipBgColor, true); } 
-                    else if (t.animated === 'dopamine') { drawDopamine(bgCtx, bgCanvas.width, bgCanvas.height, t_time, skipBgColor, true); }
-                    else if (t.animated === 'prophecy') { drawProphecy(bgCtx, bgCanvas.width, bgCanvas.height, t_time, skipBgColor, true); }
-                    else if (t.animated === 'sunset') { drawSunset(bgCtx, bgCanvas.width, bgCanvas.height, t_time, skipBgColor, true); }
-                    else if (t.animated === 'dusk') { drawDusk(bgCtx, bgCanvas.width, bgCanvas.height, t_time, skipBgColor, true); }
-                    else if (t.animated === 'ukiyoe') { drawUkiyo(bgCtx, bgCanvas.width, bgCanvas.height, t_time, t.colors, skipBgColor, true); }
-                    else if (t.animated === 'resonance') { drawResonance(bgCtx, bgCanvas.width, bgCanvas.height, t_time, skipBgColor, true); }
-                    else if (t.animated === 'eclipse') { drawEclipse(bgCtx, bgCanvas.width, bgCanvas.height, t_time, skipBgColor, true); }
-                    else {
-                        if (videoOverlayMode === 2) {
-                            bgCtx.fillStyle = `rgb(${t.bgRGB})`;
-                            bgCtx.fillRect(0, 0, bgCanvas.width, bgCanvas.height);
-                        }
-                    }
+                    renderThemeToCtx(bgCtx, bgCanvas.width, bgCanvas.height, t_time, skipBgColor, true, t);
                     bgCtx.globalAlpha = 1.0;
                     bgCtx.globalCompositeOperation = 'source-over';
                 }
@@ -975,16 +1001,8 @@
                     bgCtx.globalAlpha = 1.0;
                 }
             } else {
-                if (t.animated === 'linear') { drawLinearMorph(bgCtx, bgCanvas.width, bgCanvas.height, t_time, false, false); } 
-                else if (t.animated === 'radial') { drawRadialMist(bgCtx, bgCanvas.width, bgCanvas.height, t_time, false, false); } 
-                else if (t.animated === 'dopamine') { drawDopamine(bgCtx, bgCanvas.width, bgCanvas.height, t_time, false, false); }
-                else if (t.animated === 'prophecy') { drawProphecy(bgCtx, bgCanvas.width, bgCanvas.height, t_time, false, false); }
-                else if (t.animated === 'sunset') { drawSunset(bgCtx, bgCanvas.width, bgCanvas.height, t_time, false, false); }
-                else if (t.animated === 'dusk') { drawDusk(bgCtx, bgCanvas.width, bgCanvas.height, t_time, false, false); }
-                else if (t.animated === 'ukiyoe') { drawUkiyo(bgCtx, bgCanvas.width, bgCanvas.height, t_time, t.colors, false, false); }
-                else if (t.animated === 'resonance') { drawResonance(bgCtx, bgCanvas.width, bgCanvas.height, t_time, false, false); }
-                else if (t.animated === 'eclipse') { drawEclipse(bgCtx, bgCanvas.width, bgCanvas.height, t_time, false, false); }
-                else { bgCtx.fillStyle = `rgb(${t.bgRGB})`; bgCtx.fillRect(0, 0, bgCanvas.width, bgCanvas.height); }
+                // Ensure grain skips entirely if no video
+                renderThemeToCtx(bgCtx, bgCanvas.width, bgCanvas.height, t_time, false, true, t);
             }
 
             if (trailMode === 0) { ctx.clearRect(0, 0, canvas.width, canvas.height); } 
@@ -1105,81 +1123,51 @@
                 });
             });
 
+            // 1.5.5 Export Math: Direct Canvas Compositing. NO scaling math overhead.
             if (isExportingSnippet) {
-                exportCtx.clearRect(0, 0, exportCanvas.width, exportCanvas.height);
+                exportCtx.fillStyle = 'black';
+                exportCtx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
                 
-                let scaleBg = Math.max(exportCanvas.width / bgCanvas.width, exportCanvas.height / bgCanvas.height); 
-                let dwBg = bgCanvas.width * scaleBg; let dhBg = bgCanvas.height * scaleBg; 
-                let dxBg = (exportCanvas.width - dwBg) / 2; let dyBg = (exportCanvas.height - dhBg) / 2;
-                
-                exportCtx.save();
-                exportCtx.translate(dxBg, dyBg);
-                exportCtx.scale(scaleBg, scaleBg);
-                
+                // 1. Native Integer Cover Crop for Background (Zero GPU Lag)
                 if(customVideoActive && bgVideoElement.readyState >= 2) {
-                    drawVideoCover(exportCtx, bgVideoElement, bgCanvas.width, bgCanvas.height);
+                    drawVideoCover(exportCtx, bgVideoElement, exportCanvas.width, exportCanvas.height);
                     
                     let dimVal = parseFloat(document.getElementById('videoDimCtrl').value) || 0;
                     exportCtx.globalCompositeOperation = 'source-over';
                     exportCtx.fillStyle = `rgba(0,0,0,${dimVal})`;
-                    exportCtx.fillRect(0, 0, bgCanvas.width, bgCanvas.height);
+                    exportCtx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
                     
                     if (videoOverlayMode > 0) {
                         let themeAlpha = parseFloat(document.getElementById('videoThemeCtrl').value) || 0;
                         exportCtx.globalAlpha = themeAlpha;
                         exportCtx.globalCompositeOperation = videoOverlayMode === 1 ? 'screen' : 'overlay';
-                        
                         let skipBgColor = (videoOverlayMode === 1);
-                        if (t.animated === 'linear') { drawLinearMorph(exportCtx, bgCanvas.width, bgCanvas.height, t_time, skipBgColor, true); } 
-                        else if (t.animated === 'radial') { drawRadialMist(exportCtx, bgCanvas.width, bgCanvas.height, t_time, skipBgColor, true); } 
-                        else if (t.animated === 'dopamine') { drawDopamine(exportCtx, bgCanvas.width, bgCanvas.height, t_time, skipBgColor, true); }
-                        else if (t.animated === 'prophecy') { drawProphecy(exportCtx, bgCanvas.width, bgCanvas.height, t_time, skipBgColor, true); }
-                        else if (t.animated === 'sunset') { drawSunset(exportCtx, bgCanvas.width, bgCanvas.height, t_time, skipBgColor, true); }
-                        else if (t.animated === 'dusk') { drawDusk(exportCtx, bgCanvas.width, bgCanvas.height, t_time, skipBgColor, true); }
-                        else if (t.animated === 'ukiyoe') { drawUkiyo(exportCtx, bgCanvas.width, bgCanvas.height, t_time, t.colors, skipBgColor, true); }
-                        else if (t.animated === 'resonance') { drawResonance(exportCtx, bgCanvas.width, bgCanvas.height, t_time, skipBgColor, true); }
-                        else if (t.animated === 'eclipse') { drawEclipse(exportCtx, bgCanvas.width, bgCanvas.height, t_time, skipBgColor, true); }
-                        else {
-                            if (videoOverlayMode === 2) {
-                                exportCtx.fillStyle = `rgb(${t.bgRGB})`;
-                                exportCtx.fillRect(0, 0, bgCanvas.width, bgCanvas.height);
-                            }
-                        }
-                        exportCtx.globalAlpha = 1.0;
-                        exportCtx.globalCompositeOperation = 'source-over';
+                        renderThemeToCtx(exportCtx, exportCanvas.width, exportCanvas.height, t_time, skipBgColor, true, t);
                     }
 
                     let grainVal = parseFloat(document.getElementById('videoGrainCtrl').value) || 0;
                     if(grainVal > 0) {
                         exportCtx.globalAlpha = grainVal;
-                        exportCtx.drawImage(grainFrames[Math.floor(t_time * 15) % 4], 0, 0, bgCanvas.width, bgCanvas.height);
-                        exportCtx.globalAlpha = 1.0;
+                        exportCtx.globalCompositeOperation = 'source-over';
+                        drawVideoCover(exportCtx, grainFrames[Math.floor(t_time * 15) % 4], exportCanvas.width, exportCanvas.height);
                     }
                 } else {
-                    if (t.animated === 'linear') { drawLinearMorph(exportCtx, bgCanvas.width, bgCanvas.height, t_time, false, false); } 
-                    else if (t.animated === 'radial') { drawRadialMist(exportCtx, bgCanvas.width, bgCanvas.height, t_time, false, false); } 
-                    else if (t.animated === 'dopamine') { drawDopamine(exportCtx, bgCanvas.width, bgCanvas.height, t_time, false, false); }
-                    else if (t.animated === 'prophecy') { drawProphecy(exportCtx, bgCanvas.width, bgCanvas.height, t_time, false, false); }
-                    else if (t.animated === 'sunset') { drawSunset(exportCtx, bgCanvas.width, bgCanvas.height, t_time, false, false); }
-                    else if (t.animated === 'dusk') { drawDusk(exportCtx, bgCanvas.width, bgCanvas.height, t_time, false, false); }
-                    else if (t.animated === 'ukiyoe') { drawUkiyo(exportCtx, bgCanvas.width, bgCanvas.height, t_time, t.colors, false, false); }
-                    else if (t.animated === 'resonance') { drawResonance(exportCtx, bgCanvas.width, bgCanvas.height, t_time, false, false); }
-                    else if (t.animated === 'eclipse') { drawEclipse(exportCtx, bgCanvas.width, bgCanvas.height, t_time, false, false); }
-                    else { exportCtx.fillStyle = `rgb(${t.bgRGB})`; exportCtx.fillRect(0, 0, bgCanvas.width, bgCanvas.height); }
+                    exportCtx.globalAlpha = 1.0;
+                    exportCtx.globalCompositeOperation = 'source-over';
+                    renderThemeToCtx(exportCtx, exportCanvas.width, exportCanvas.height, t_time, false, true, t);
                 }
-                exportCtx.restore();
-
-                let scaleFg = Math.min(exportCanvas.width / canvas.width, exportCanvas.height / canvas.height); 
-                let dwFg = canvas.width * scaleFg; let dhFg = canvas.height * scaleFg; 
-                let dxFg = (exportCanvas.width - dwFg) / 2; let dyFg = (exportCanvas.height - dhFg) / 2;
-                exportCtx.drawImage(canvas, dxFg, dyFg, dwFg, dhFg);
+                
+                // 2. Native Integer Contain Math for Physics (Never stretches dots)
+                exportCtx.globalAlpha = 1.0;
+                exportCtx.globalCompositeOperation = 'source-over';
+                drawVideoContain(exportCtx, canvas, exportCanvas.width, exportCanvas.height);
 
                 if (infoState > 0) {
                     let isPortraitExport = exportCanvas.height > exportCanvas.width;
                     const titleText = (document.getElementById('trackTitleCtrl').value || 'UNTITLED SEQUENCE').toUpperCase(); const dateText = "COMPOSED: " + document.getElementById('zenDateText').innerText; const brandingText = "MADE WITH HIRAJOSHI WAVE STUDIO";
                     exportCtx.save(); exportCtx.textAlign = "right"; exportCtx.textBaseline = "bottom"; exportCtx.shadowColor = "rgba(0, 0, 0, 0.8)"; exportCtx.shadowBlur = 12; exportCtx.shadowOffsetY = 4; exportCtx.shadowOffsetX = 0;
                     const refWidth = Math.min(exportCanvas.width, exportCanvas.height); const baseFontSize = isPortraitExport ? (refWidth * 0.025) : (refWidth * 0.025); const stateScale = infoState === 1 ? 1 : infoState === 2 ? 1.15 : 1.30; const fScale = stateScale;
-                    let burnX = isPortraitExport ? (dxFg + dwFg - 40) : (exportCanvas.width - 40); let burnY = isPortraitExport ? (dyFg + dhFg + 120) : (exportCanvas.height - 40);
+                    let burnX = exportCanvas.width - 40; let burnY = exportCanvas.height - 40;
                     exportCtx.fillStyle = "white"; exportCtx.globalAlpha = 0.5; exportCtx.font = `600 ${baseFontSize * 0.8 * fScale}px 'JetBrains Mono', monospace`; exportCtx.fillText(brandingText, burnX, burnY);
                     burnY -= (baseFontSize * 1.5 * fScale); exportCtx.globalAlpha = 0.7; exportCtx.font = `600 ${baseFontSize * 0.9 * fScale}px 'JetBrains Mono', monospace`; exportCtx.fillText(dateText, burnX, burnY);
                     burnY -= (baseFontSize * 1.6 * fScale); exportCtx.globalAlpha = 0.9; exportCtx.font = `600 ${baseFontSize * 1.1 * fScale}px 'JetBrains Mono', monospace`; exportCtx.fillText(titleText, burnX, burnY);
@@ -1323,28 +1311,36 @@
             document.getElementById('renderSnippetBtn').addEventListener('click', () => {
                 if (isExportingSnippet) return; initAudio(); if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
                 isRenderCancelled = false; 
-                let isPortraitExport = canvas.height > canvas.width;
-                if (isPortraitExport) { exportCanvas.width = 1080; exportCanvas.height = 1920; } else { exportCanvas.width = 1920; exportCanvas.height = 1080; }
+                
+                // 1.5.5 Ensure the Export Canvas correctly mirrors Zen Mode / Viewport Orientation
+                let isPortraitMode = window.innerHeight > window.innerWidth;
+                exportCanvas.width = isPortraitMode ? 1080 : 1920;
+                exportCanvas.height = isPortraitMode ? 1920 : 1080;
                 
                 snippetTargetMs = selectedDuration * 1000;
+                
+                // Explicit requested settings
                 let exportFPS = 30; let exportBitrate = 15000000; let ramFlushRate = 1000; 
                 
-                const videoStream = exportCanvas.captureStream(exportFPS); const audioStream = streamDest.stream;
-                const combinedStream = new MediaStream([ videoStream.getVideoTracks()[0], audioStream.getAudioTracks()[0] ]);
-                let mimeType = 'video/mp4'; if (!MediaRecorder.isTypeSupported(mimeType)) { mimeType = 'video/webm;codecs=vp9,opus'; if (!MediaRecorder.isTypeSupported(mimeType)) { mimeType = 'video/webm'; } }
-                
-                snippetChunks = []; snippetMediaRecorder = new MediaRecorder(combinedStream, { mimeType: mimeType, videoBitsPerSecond: exportBitrate });
-                snippetMediaRecorder.ondataavailable = e => { if (e.data.size > 0) snippetChunks.push(e.data); };
-                
-                snippetMediaRecorder.onstop = () => {
-                    if (isRenderCancelled) { snippetChunks = []; isExportingSnippet = false; document.getElementById('exportProgressArea').style.display = 'none'; document.getElementById('renderSnippetBtn').innerText = 'EXPORT VIDEO (.MP4 / .WEBM)'; document.getElementById('renderSnippetBtn').disabled = false; return; }
-                    try { const blob = new Blob(snippetChunks, { type: mimeType }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.style.display = 'none'; a.href = url; const ext = mimeType.includes('mp4') ? 'mp4' : 'webm'; const trackTitle = (document.getElementById('trackTitleCtrl').value || 'UNTITLED').replace(/\s+/g, '_'); a.download = `HIRA_WAVE_${trackTitle}_${selectedDuration}s.${ext}`; document.body.appendChild(a); a.click(); window.URL.revokeObjectURL(url); } catch (err) { console.error("File compilation failed:", err); alert("Export failed. Try a shorter duration (15s)."); }
-                    snippetChunks = []; isExportingSnippet = false; document.getElementById('exportProgressArea').style.display = 'none'; document.getElementById('renderSnippetBtn').innerText = 'EXPORT VIDEO (.MP4 / .WEBM)'; document.getElementById('renderSnippetBtn').disabled = false;
-                };
-                
-                snippetMediaRecorder.start(ramFlushRate); isExportingSnippet = true; snippetStartTime = performance.now();
-                document.getElementById('exportProgressArea').style.display = 'block'; document.getElementById('exportProgressBar').style.width = '0%'; document.getElementById('renderSnippetBtn').innerText = 'RENDERING VIDEO...'; document.getElementById('renderSnippetBtn').disabled = true;
-                if (!isPlaying) document.getElementById('startBtn').click();
+                // Brief 50ms flush to allow browser DOM to update canvas memory bounds before encoding starts
+                setTimeout(() => {
+                    const videoStream = exportCanvas.captureStream(exportFPS); const audioStream = streamDest.stream;
+                    const combinedStream = new MediaStream([ videoStream.getVideoTracks()[0], audioStream.getAudioTracks()[0] ]);
+                    let mimeType = 'video/mp4'; if (!MediaRecorder.isTypeSupported(mimeType)) { mimeType = 'video/webm;codecs=vp9,opus'; if (!MediaRecorder.isTypeSupported(mimeType)) { mimeType = 'video/webm'; } }
+                    
+                    snippetChunks = []; snippetMediaRecorder = new MediaRecorder(combinedStream, { mimeType: mimeType, videoBitsPerSecond: exportBitrate });
+                    snippetMediaRecorder.ondataavailable = e => { if (e.data.size > 0) snippetChunks.push(e.data); };
+                    
+                    snippetMediaRecorder.onstop = () => {
+                        if (isRenderCancelled) { snippetChunks = []; isExportingSnippet = false; document.getElementById('exportProgressArea').style.display = 'none'; document.getElementById('renderSnippetBtn').innerText = 'EXPORT VIDEO (.MP4 / .WEBM)'; document.getElementById('renderSnippetBtn').disabled = false; return; }
+                        try { const blob = new Blob(snippetChunks, { type: mimeType }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.style.display = 'none'; a.href = url; const ext = mimeType.includes('mp4') ? 'mp4' : 'webm'; const trackTitle = (document.getElementById('trackTitleCtrl').value || 'UNTITLED').replace(/\s+/g, '_'); a.download = `HIRA_WAVE_${trackTitle}_${selectedDuration}s.${ext}`; document.body.appendChild(a); a.click(); window.URL.revokeObjectURL(url); } catch (err) { console.error("File compilation failed:", err); alert("Export failed. Try a shorter duration (15s)."); }
+                        snippetChunks = []; isExportingSnippet = false; document.getElementById('exportProgressArea').style.display = 'none'; document.getElementById('renderSnippetBtn').innerText = 'EXPORT VIDEO (.MP4 / .WEBM)'; document.getElementById('renderSnippetBtn').disabled = false;
+                    };
+                    
+                    snippetMediaRecorder.start(ramFlushRate); isExportingSnippet = true; snippetStartTime = performance.now(); lastExportFrameTime = performance.now();
+                    document.getElementById('exportProgressArea').style.display = 'block'; document.getElementById('exportProgressBar').style.width = '0%'; document.getElementById('renderSnippetBtn').innerText = 'RENDERING VIDEO...'; document.getElementById('renderSnippetBtn').disabled = true;
+                    if (!isPlaying) document.getElementById('startBtn').click();
+                }, 50);
             });
 
             document.getElementById('cancelRenderBtn').addEventListener('click', () => { if (isExportingSnippet) { isRenderCancelled = true; isExportingSnippet = false; if (snippetMediaRecorder && snippetMediaRecorder.state !== 'inactive') { snippetMediaRecorder.stop(); } document.getElementById('exportProgressArea').style.display = 'none'; document.getElementById('renderSnippetBtn').innerText = 'EXPORT VIDEO (.MP4 / .WEBM)'; document.getElementById('renderSnippetBtn').disabled = false; } });
@@ -1408,14 +1404,10 @@
             document.getElementById('videoInput').addEventListener('change', function(e) {
                 let file = e.target.files[0]; if(!file) return; let url = URL.createObjectURL(file); bgVideoElement.src = url;
                 bgVideoElement.onloadedmetadata = () => {
-                    if (bgVideoElement.videoHeight > bgVideoElement.videoWidth) {
-                        canvas.width = 1080; canvas.height = 1920;
-                        bgCanvas.width = 1080; bgCanvas.height = 1920;
-                    } else {
-                        canvas.width = 1920; canvas.height = 1080;
-                        bgCanvas.width = 1920; bgCanvas.height = 1080;
-                    }
-                    initGrain(bgCanvas.width, bgCanvas.height);
+                    // v1.5.5 Physics array remains untouched, preserving exact wide aspect ratio math.
+                    canvas.width = 1920; canvas.height = 1080;
+                    bgCanvas.width = 1920; bgCanvas.height = 1080;
+                    initGrain(1920, 1080);
                     forceCanvasWipe();
                 };
                 bgVideoElement.play().then(() => { 
