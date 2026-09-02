@@ -168,7 +168,7 @@
         <!-- HEADER -->
         <div class="hardware-panel" style="padding: 12px 16px; padding-bottom: 12px;">
             <div class="app-header" style="margin-bottom: 8px; padding-bottom: 8px;">
-                <div><h1 class="logo-text">HIRA WAVE STUDIO</h1><div class="logo-sub">GENERATIVE POLYRHYTHMIC SEQUENCER • v1.5.3</div></div>
+                <div><h1 class="logo-text">HIRA WAVE STUDIO</h1><div class="logo-sub">GENERATIVE POLYRHYTHMIC SEQUENCER • v1.5.4</div></div>
             </div>
             <div class="track-title-row"><label>TITLE:</label><input type="text" id="trackTitleCtrl" class="track-title-input" value="UNTITLED SEQUENCE"></div>
         </div>
@@ -761,7 +761,20 @@
             if(!skipGrain) targetCtx.drawImage(grainFrames[Math.floor(t_time * 15) % 4], 0, 0, w, h); 
         }
 
-        // v1.5.3 FIX: Hardware-accelerated 9-slice cropping for zero processor lag
+        function renderThemeToCtx(ctx, w, h, t_time, skipBg, skipGrain, theme) {
+            if (theme.animated === 'linear') { drawLinearMorph(ctx, w, h, t_time, skipBg, skipGrain); } 
+            else if (theme.animated === 'radial') { drawRadialMist(ctx, w, h, t_time, skipBg, skipGrain); } 
+            else if (theme.animated === 'dopamine') { drawDopamine(ctx, w, h, t_time, skipBg, skipGrain); }
+            else if (theme.animated === 'prophecy') { drawProphecy(ctx, w, h, t_time, skipBg, skipGrain); }
+            else if (theme.animated === 'sunset') { drawSunset(ctx, w, h, t_time, skipBg, skipGrain); }
+            else if (theme.animated === 'dusk') { drawDusk(ctx, w, h, t_time, skipBg, skipGrain); }
+            else if (theme.animated === 'ukiyoe') { drawUkiyo(ctx, w, h, t_time, theme.colors, skipBg, skipGrain); }
+            else if (theme.animated === 'resonance') { drawResonance(ctx, w, h, t_time, skipBg, skipGrain); }
+            else if (theme.animated === 'eclipse') { drawEclipse(ctx, w, h, t_time, skipBg, skipGrain); }
+            else { if (!skipBg) { ctx.fillStyle = `rgb(${theme.bgRGB})`; ctx.fillRect(0, 0, w, h); } }
+        }
+
+        // v1.5.5 FIX: Strict integer wrapping on 9-slice Math kills Safari CPU lag
         function drawVideoCover(c, source, cw, ch) { 
             const vw = source.videoWidth || source.width; 
             const vh = source.videoHeight || source.height; 
@@ -771,10 +784,10 @@
             let sx = 0, sy = 0, sw = vw, sh = vh;
             if (sourceRatio > targetRatio) { sw = vh * targetRatio; sx = (vw - sw) / 2; } 
             else { sh = vw / targetRatio; sy = (vh - sh) / 2; }
-            c.drawImage(source, sx, sy, sw, sh, 0, 0, cw, ch); 
+            c.drawImage(source, Math.round(sx), Math.round(sy), Math.round(sw), Math.round(sh), 0, 0, Math.round(cw), Math.round(ch)); 
         }
 
-        // v1.5.3 FIX: Hardware-accelerated 9-slice containment
+        // v1.5.5 FIX: Strict integer wrapping on 9-slice Math kills Safari CPU lag
         function drawVideoContain(c, source, cw, ch) { 
             const vw = source.videoWidth || source.width; 
             const vh = source.videoHeight || source.height; 
@@ -784,7 +797,7 @@
             let dx = 0, dy = 0, dw = cw, dh = ch;
             if (sourceRatio > targetRatio) { dh = cw / sourceRatio; dy = (ch - dh) / 2; } 
             else { dw = ch * sourceRatio; dx = (cw - dw) / 2; }
-            c.drawImage(source, 0, 0, vw, vh, dx, dy, dw, dh); 
+            c.drawImage(source, 0, 0, vw, vh, Math.round(dx), Math.round(dy), Math.round(dw), Math.round(dh)); 
         }
 
         function setZenMode(active) { isZenActive = active; const fullscreenWrapper = document.getElementById('fullscreenWrapper'); const minimalControls = document.getElementById('minimalControls'); if (isZenActive) { fullscreenWrapper.classList.add('zen-active'); if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen(); else if (document.documentElement.webkitRequestFullscreen) document.documentElement.webkitRequestFullscreen(); if (isRecordingAudio) zenRecTimerText.style.display = 'block'; resetIdleTimer(); } else { fullscreenWrapper.classList.remove('zen-active'); minimalControls.classList.remove('hidden'); document.body.classList.remove('idle-cursor'); zenRecTimerText.style.display = 'none'; clearTimeout(idleTimer); if (document.fullscreenElement || document.webkitFullscreenElement) { if (document.exitFullscreen) document.exitFullscreen(); else if (document.webkitExitFullscreen) document.webkitExitFullscreen(); } } }
@@ -977,7 +990,7 @@
             bgCtx.clearRect(0, 0, bgCanvas.width, bgCanvas.height);
             grainCtx.clearRect(0, 0, grainCanvas.width, grainCanvas.height);
 
-            // Live View Rendering
+            // v1.5.5 FIX: Live View Rendering with Explicit Grain Nulling
             if(customVideoActive && bgVideoElement.readyState >= 2) {
                 let dimVal = parseFloat(document.getElementById('videoDimCtrl').value) || 0; 
                 document.getElementById('videoDimmer').style.opacity = dimVal;
@@ -986,23 +999,8 @@
                     let themeAlpha = parseFloat(document.getElementById('videoThemeCtrl').value) || 0;
                     bgCanvas.style.opacity = themeAlpha;
                     bgCanvas.style.mixBlendMode = videoOverlayMode === 1 ? 'screen' : 'overlay';
-                    
                     let skipBgColor = (videoOverlayMode === 1);
-                    if (t.animated === 'linear') { drawLinearMorph(bgCtx, bgCanvas.width, bgCanvas.height, t_time, skipBgColor, true); } 
-                    else if (t.animated === 'radial') { drawRadialMist(bgCtx, bgCanvas.width, bgCanvas.height, t_time, skipBgColor, true); } 
-                    else if (t.animated === 'dopamine') { drawDopamine(bgCtx, bgCanvas.width, bgCanvas.height, t_time, skipBgColor, true); }
-                    else if (t.animated === 'prophecy') { drawProphecy(bgCtx, bgCanvas.width, bgCanvas.height, t_time, skipBgColor, true); }
-                    else if (t.animated === 'sunset') { drawSunset(bgCtx, bgCanvas.width, bgCanvas.height, t_time, skipBgColor, true); }
-                    else if (t.animated === 'dusk') { drawDusk(bgCtx, bgCanvas.width, bgCanvas.height, t_time, skipBgColor, true); }
-                    else if (t.animated === 'ukiyoe') { drawUkiyo(bgCtx, bgCanvas.width, bgCanvas.height, t_time, t.colors, skipBgColor, true); }
-                    else if (t.animated === 'resonance') { drawResonance(bgCtx, bgCanvas.width, bgCanvas.height, t_time, skipBgColor, true); }
-                    else if (t.animated === 'eclipse') { drawEclipse(bgCtx, bgCanvas.width, bgCanvas.height, t_time, skipBgColor, true); }
-                    else {
-                        if (videoOverlayMode === 2) {
-                            bgCtx.fillStyle = `rgb(${t.bgRGB})`;
-                            bgCtx.fillRect(0, 0, bgCanvas.width, bgCanvas.height);
-                        }
-                    }
+                    renderThemeToCtx(bgCtx, bgCanvas.width, bgCanvas.height, t_time, skipBgColor, true, t);
                 } else {
                     bgCanvas.style.opacity = 0;
                 }
@@ -1018,18 +1016,8 @@
                 document.getElementById('videoDimmer').style.opacity = 0;
                 bgCanvas.style.opacity = 1.0;
                 bgCanvas.style.mixBlendMode = 'normal';
-                grainCanvas.style.opacity = 1.0;
-
-                if (t.animated === 'linear') { drawLinearMorph(bgCtx, bgCanvas.width, bgCanvas.height, t_time, false, true); } 
-                else if (t.animated === 'radial') { drawRadialMist(bgCtx, bgCanvas.width, bgCanvas.height, t_time, false, true); } 
-                else if (t.animated === 'dopamine') { drawDopamine(bgCtx, bgCanvas.width, bgCanvas.height, t_time, false, true); }
-                else if (t.animated === 'prophecy') { drawProphecy(bgCtx, bgCanvas.width, bgCanvas.height, t_time, false, true); }
-                else if (t.animated === 'sunset') { drawSunset(bgCtx, bgCanvas.width, bgCanvas.height, t_time, false, true); }
-                else if (t.animated === 'dusk') { drawDusk(bgCtx, bgCanvas.width, bgCanvas.height, t_time, false, true); }
-                else if (t.animated === 'ukiyoe') { drawUkiyo(bgCtx, bgCanvas.width, bgCanvas.height, t_time, t.colors, false, true); }
-                else if (t.animated === 'resonance') { drawResonance(bgCtx, bgCanvas.width, bgCanvas.height, t_time, false, true); }
-                else if (t.animated === 'eclipse') { drawEclipse(bgCtx, bgCanvas.width, bgCanvas.height, t_time, false, true); }
-                else { bgCtx.fillStyle = `rgb(${t.bgRGB})`; bgCtx.fillRect(0, 0, bgCanvas.width, bgCanvas.height); }
+                grainCanvas.style.opacity = 0; 
+                renderThemeToCtx(bgCtx, bgCanvas.width, bgCanvas.height, t_time, false, true, t);
             }
 
             if (trailMode === 0) { ctx.clearRect(0, 0, canvas.width, canvas.height); } 
@@ -1151,7 +1139,7 @@
                 });
             });
 
-            // v1.5.3 FIX: Export respects Video File Orientation directly + hardware 9-slice + throttle
+            // v1.5.5 FIX: Direct Theme rendering to avoid hardware drawImage lag
             if (isExportingSnippet) {
                 if (now - lastExportFrameTime >= 33.33) {
                     lastExportFrameTime = now;
@@ -1169,7 +1157,8 @@
                             let themeAlpha = parseFloat(document.getElementById('videoThemeCtrl').value) || 0;
                             exportCtx.globalAlpha = themeAlpha;
                             exportCtx.globalCompositeOperation = videoOverlayMode === 1 ? 'screen' : 'overlay';
-                            drawVideoCover(exportCtx, bgCanvas, exportCanvas.width, exportCanvas.height);
+                            let skipBgColor = (videoOverlayMode === 1);
+                            renderThemeToCtx(exportCtx, exportCanvas.width, exportCanvas.height, t_time, skipBgColor, true, t);
                         }
 
                         let grainVal = parseFloat(document.getElementById('videoGrainCtrl').value) || 0;
@@ -1181,7 +1170,7 @@
                     } else {
                         exportCtx.globalAlpha = 1.0;
                         exportCtx.globalCompositeOperation = 'source-over';
-                        drawVideoCover(exportCtx, bgCanvas, exportCanvas.width, exportCanvas.height);
+                        renderThemeToCtx(exportCtx, exportCanvas.width, exportCanvas.height, t_time, false, true, t);
                     }
                     
                     exportCtx.globalAlpha = 1.0;
@@ -1335,7 +1324,6 @@
 
             document.querySelectorAll('.export-pill').forEach(pill => { pill.addEventListener('click', (e) => { document.querySelectorAll('.export-pill').forEach(p => p.classList.remove('active')); pill.classList.add('active'); const dur = pill.getAttribute('data-dur'); selectedDuration = dur === 'loop' ? 'loop' : parseInt(dur); }); });
 
-            // v1.5.3 FIX: Let the uploaded video perfectly dictate the export orientation.
             document.getElementById('renderSnippetBtn').addEventListener('click', () => {
                 if (isExportingSnippet) return; initAudio(); if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
                 isRenderCancelled = false; 
@@ -1349,13 +1337,7 @@
                 exportCanvas.style.top = '-9999px';
                 exportCanvas.style.left = '-9999px';
                 
-                // If a video is playing, force the export to match the video's aspect perfectly
-                let isPortraitMode = false;
-                if (customVideoActive && bgVideoElement.readyState >= 2) {
-                    isPortraitMode = (bgVideoElement.videoHeight > bgVideoElement.videoWidth);
-                } else {
-                    isPortraitMode = window.innerHeight > window.innerWidth;
-                }
+                let isPortraitMode = window.innerHeight > window.innerWidth;
 
                 let expW = isPortraitMode ? 1080 : 1920;
                 let expH = isPortraitMode ? 1920 : 1080;
