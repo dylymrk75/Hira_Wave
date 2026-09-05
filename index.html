@@ -162,7 +162,7 @@
         <!-- HEADER -->
         <div class="hardware-panel" style="padding: 12px 16px; padding-bottom: 12px;">
             <div class="app-header" style="margin-bottom: 8px; padding-bottom: 8px;">
-                <div><h1 class="logo-text">HIRA WAVE STUDIO</h1><div class="logo-sub">GENERATIVE POLYRHYTHMIC SEQUENCER • v2.2</div></div>
+                <div><h1 class="logo-text">HIRA WAVE STUDIO</h1><div class="logo-sub">GENERATIVE POLYRHYTHMIC SEQUENCER • v2.2.2</div></div>
             </div>
             <div class="track-title-row"><label>TITLE:</label><input type="text" id="trackTitleCtrl" class="track-title-input" value="UNTITLED SEQUENCE"></div>
         </div>
@@ -469,12 +469,11 @@
     <script>
         const bgVideoElement = document.getElementById('bgVideo'); const canvas = document.getElementById('canvas'); const ctx = canvas.getContext('2d'); const bgCanvas = document.getElementById('bgCanvas'); const bgCtx = bgCanvas.getContext('2d'); const sliceList = document.getElementById('sliceList'); const scrubber = document.getElementById('scrubCtrl');
         
-        // Export Canvas is pre-allocated globally (Memory Leak Fix)
         const exportCanvas = document.createElement('canvas'); exportCanvas.id = 'exportCanvas'; exportCanvas.style.position = 'fixed'; exportCanvas.style.top = '0px'; exportCanvas.style.left = '0px'; exportCanvas.style.width = '10px'; exportCanvas.style.height = '10px'; exportCanvas.style.opacity = '0.01'; exportCanvas.style.pointerEvents = 'none'; exportCanvas.style.zIndex = '-9999'; document.body.appendChild(exportCanvas); const exportCtx = exportCanvas.getContext('2d', { alpha: false });
 
         const overlay = document.getElementById('zenInfoOverlay'); const infoBtn = document.getElementById('infoBtn'); const minInfoBtn = document.getElementById('minInfoBtn'); const recTimerText = document.getElementById('recTimer'); const zenRecTimerText = document.getElementById('zenRecTimer');
 
-        let customVideoActive = false; let videoOverlayMode = 1; // 0: OFF, 1: FX ONLY, 2: FULL WASH
+        let customVideoActive = false; let videoOverlayMode = 1; 
         let audioCtx = null; let isPlaying = false; let globalPhaseTime = 0; const FULL_CYCLE_PHASE = 100 * Math.PI; let isScrubbing = false; let audioRecStartTime = 0; let lastFrameTime = performance.now();
         let isZenActive = false; let idleTimer; let focusedSliceId = null; let infoState = 0; let overlayDraggingActive = false; let overlayOffsetX = 0, overlayOffsetY = 0;
 
@@ -727,7 +726,6 @@
                 }; createOsc(0, 1); if (settings.fifthMix > 0) createOsc(7, settings.fifthMix);
             }
         }
-
         function formatTimeMs(ms) { let mins = Math.floor(ms / 60000); let secs = Math.floor((ms % 60000) / 1000); let millis = Math.floor((ms % 1000) / 10); return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}.${millis.toString().padStart(2, '0')}`; }
 
         function updateReadout(id, val) {
@@ -1075,8 +1073,7 @@
             if(isRecordingAudio) { const txt = "REC " + formatTimeMs(now - audioRecStartTime); document.getElementById('recTimer').innerText = txt; if(zenRecTimerText) zenRecTimerText.innerText = txt; }
             const t = visualThemes[currentThemeIndex];
             
-            // Clean slate for main loop
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            // Background Canvas Clean
             bgCtx.clearRect(0, 0, bgCanvas.width, bgCanvas.height);
 
             if(customVideoActive && bgVideoElement.readyState >= 2) {
@@ -1090,8 +1087,23 @@
                     let themeAlpha = parseFloat(document.getElementById('videoThemeCtrl').value) || 0;
                     bgCtx.globalAlpha = themeAlpha;
                     bgCtx.globalCompositeOperation = videoOverlayMode === 1 ? 'screen' : 'overlay';
+                    
                     let skipBgColor = (videoOverlayMode === 1);
-                    renderThemeToCtx(bgCtx, bgCanvas.width, bgCanvas.height, t_time, skipBgColor, true, t);
+                    if (t.animated === 'linear') { drawLinearMorph(bgCtx, bgCanvas.width, bgCanvas.height, t_time, skipBgColor, true); } 
+                    else if (t.animated === 'radial') { drawRadialMist(bgCtx, bgCanvas.width, bgCanvas.height, t_time, skipBgColor, true); } 
+                    else if (t.animated === 'dopamine') { drawDopamine(bgCtx, bgCanvas.width, bgCanvas.height, t_time, skipBgColor, true); }
+                    else if (t.animated === 'prophecy') { drawProphecy(bgCtx, bgCanvas.width, bgCanvas.height, t_time, skipBgColor, true); }
+                    else if (t.animated === 'sunset') { drawSunset(bgCtx, bgCanvas.width, bgCanvas.height, t_time, skipBgColor, true); }
+                    else if (t.animated === 'dusk') { drawDusk(bgCtx, bgCanvas.width, bgCanvas.height, t_time, skipBgColor, true); }
+                    else if (t.animated === 'ukiyoe') { drawUkiyo(bgCtx, bgCanvas.width, bgCanvas.height, t_time, t.colors, skipBgColor, true); }
+                    else if (t.animated === 'resonance') { drawResonance(bgCtx, bgCanvas.width, bgCanvas.height, t_time, skipBgColor, true); }
+                    else if (t.animated === 'eclipse') { drawEclipse(bgCtx, bgCanvas.width, bgCanvas.height, t_time, skipBgColor, true); }
+                    else {
+                        if (videoOverlayMode === 2) {
+                            bgCtx.fillStyle = `rgb(${t.bgRGB})`;
+                            bgCtx.fillRect(0, 0, bgCanvas.width, bgCanvas.height);
+                        }
+                    }
                     bgCtx.globalAlpha = 1.0;
                     bgCtx.globalCompositeOperation = 'source-over';
                 }
@@ -1103,12 +1115,28 @@
                     bgCtx.globalAlpha = 1.0;
                 }
             } else {
-                // Ensure grain skips entirely if no video
-                renderThemeToCtx(bgCtx, bgCanvas.width, bgCanvas.height, t_time, false, true, t);
+                if (t.animated === 'linear') { drawLinearMorph(bgCtx, bgCanvas.width, bgCanvas.height, t_time, false, false); } 
+                else if (t.animated === 'radial') { drawRadialMist(bgCtx, bgCanvas.width, bgCanvas.height, t_time, false, false); } 
+                else if (t.animated === 'dopamine') { drawDopamine(bgCtx, bgCanvas.width, bgCanvas.height, t_time, false, false); }
+                else if (t.animated === 'prophecy') { drawProphecy(bgCtx, bgCanvas.width, bgCanvas.height, t_time, false, false); }
+                else if (t.animated === 'sunset') { drawSunset(bgCtx, bgCanvas.width, bgCanvas.height, t_time, false, false); }
+                else if (t.animated === 'dusk') { drawDusk(bgCtx, bgCanvas.width, bgCanvas.height, t_time, false, false); }
+                else if (t.animated === 'ukiyoe') { drawUkiyo(bgCtx, bgCanvas.width, bgCanvas.height, t_time, t.colors, false, false); }
+                else if (t.animated === 'resonance') { drawResonance(bgCtx, bgCanvas.width, bgCanvas.height, t_time, false, false); }
+                else if (t.animated === 'eclipse') { drawEclipse(bgCtx, bgCanvas.width, bgCanvas.height, t_time, false, false); }
+                else { bgCtx.fillStyle = `rgb(${t.bgRGB})`; bgCtx.fillRect(0, 0, bgCanvas.width, bgCanvas.height); }
             }
 
-            if (trailMode === 0) { ctx.clearRect(0, 0, canvas.width, canvas.height); } 
-            else { ctx.globalCompositeOperation = 'destination-out'; ctx.fillStyle = `rgba(0, 0, 0, ${trailMode === 1 ? 0.3 : 0.08})`; ctx.fillRect(0, 0, canvas.width, canvas.height); ctx.globalCompositeOperation = 'source-over'; }
+            // --- TRAILS FIX ---
+            // Unconditional clearRect is removed! Replaced with smart logic that respects trailMode
+            if (trailMode === 0) { 
+                ctx.clearRect(0, 0, canvas.width, canvas.height); 
+            } else { 
+                ctx.globalCompositeOperation = 'destination-out'; 
+                ctx.fillStyle = `rgba(0, 0, 0, ${trailMode === 1 ? 0.3 : 0.08})`; 
+                ctx.fillRect(0, 0, canvas.width, canvas.height); 
+                ctx.globalCompositeOperation = 'source-over'; 
+            }
             
             if (isPlaying && !isScrubbing && !isLoopMode) {
                 globalPhaseTime += mainState.speed * 0.02 * timeScale; 
@@ -1174,8 +1202,12 @@
 
                     if (path.length > 1) {
                         const t_pos = (swing + 1) / 2; const d = t_pos * pLen; let currentSegment = 0, targetX = path[0].x, targetY = path[0].y;
-                        for(let i=1; i<pDists.length; i++) { if (d <= pDists[i] || i === pDists.length - 1) { currentSegment = i; let prevD = pDists[i-1], segLen = pDists[i] - prevD; let localT = segLen === 0 ? 0 : (d - prevD) / segLen; targetX = customPath[i-1].x + (customPath[i].x - customPath[i-1].x) * localT; targetY = customPath[i-1].y + (customPath[i].y - customPath[i-1].y) * localT; break; } }
+                        
+                        // --- DRAW MODE LOOP FIX ---
+                        // All coordinate math now strictly references the slice's 'path' instead of the global 'customPath'
+                        for(let i=1; i<pDists.length; i++) { if (d <= pDists[i] || i === pDists.length - 1) { currentSegment = i; let prevD = pDists[i-1], segLen = pDists[i] - prevD; let localT = segLen === 0 ? 0 : (d - prevD) / segLen; targetX = path[i-1].x + (path[i].x - path[i-1].x) * localT; targetY = path[i-1].y + (path[i].y - path[i-1].y) * localT; break; } }
                         px = targetX; py = targetY;
+                        
                         if (p.lastSegment !== undefined && p.lastSegment !== currentSegment && isPlaying && !isScrubbing && !playedNoteThisFrame) { if (set.opacity > 0.05) playNote(p, index, set.settings, set.opacity); if (isPulseEnabled) p.pulse = 1.0; playedNoteThisFrame = true; }
                         p.lastSegment = currentSegment;
                     } else {
@@ -1225,66 +1257,81 @@
                 });
             });
 
-            // 1.5.5 Export Math: Direct Canvas Compositing. NO scaling math overhead.
             if (isExportingSnippet) {
-                exportCtx.fillStyle = 'black';
-                exportCtx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
+                exportCtx.clearRect(0, 0, exportCanvas.width, exportCanvas.height);
                 
-                // 1. Native Integer Cover Crop for Background (Zero GPU Lag)
+                let scaleBg = Math.max(exportCanvas.width / bgCanvas.width, exportCanvas.height / bgCanvas.height); 
+                let dwBg = bgCanvas.width * scaleBg; let dhBg = bgCanvas.height * scaleBg; 
+                let dxBg = (exportCanvas.width - dwBg) / 2; let dyBg = (exportCanvas.height - dhBg) / 2;
+                
+                exportCtx.save();
+                exportCtx.translate(dxBg, dyBg);
+                exportCtx.scale(scaleBg, scaleBg);
+                
                 if(customVideoActive && bgVideoElement.readyState >= 2) {
-                    drawVideoCover(exportCtx, bgVideoElement, exportCanvas.width, exportCanvas.height);
+                    drawVideoCover(exportCtx, bgVideoElement, bgCanvas.width, bgCanvas.height);
                     
                     let dimVal = parseFloat(document.getElementById('videoDimCtrl').value) || 0;
                     exportCtx.globalCompositeOperation = 'source-over';
                     exportCtx.fillStyle = `rgba(0,0,0,${dimVal})`;
-                    exportCtx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
+                    exportCtx.fillRect(0, 0, bgCanvas.width, bgCanvas.height);
                     
                     if (videoOverlayMode > 0) {
                         let themeAlpha = parseFloat(document.getElementById('videoThemeCtrl').value) || 0;
                         exportCtx.globalAlpha = themeAlpha;
                         exportCtx.globalCompositeOperation = videoOverlayMode === 1 ? 'screen' : 'overlay';
+                        
                         let skipBgColor = (videoOverlayMode === 1);
-                        renderThemeToCtx(exportCtx, exportCanvas.width, exportCanvas.height, t_time, skipBgColor, true, t);
+                        if (t.animated === 'linear') { drawLinearMorph(exportCtx, bgCanvas.width, bgCanvas.height, t_time, skipBgColor, true); } 
+                        else if (t.animated === 'radial') { drawRadialMist(exportCtx, bgCanvas.width, bgCanvas.height, t_time, skipBgColor, true); } 
+                        else if (t.animated === 'dopamine') { drawDopamine(exportCtx, bgCanvas.width, bgCanvas.height, t_time, skipBgColor, true); }
+                        else if (t.animated === 'prophecy') { drawProphecy(exportCtx, bgCanvas.width, bgCanvas.height, t_time, skipBgColor, true); }
+                        else if (t.animated === 'sunset') { drawSunset(exportCtx, bgCanvas.width, bgCanvas.height, t_time, skipBgColor, true); }
+                        else if (t.animated === 'dusk') { drawDusk(exportCtx, bgCanvas.width, bgCanvas.height, t_time, skipBgColor, true); }
+                        else if (t.animated === 'ukiyoe') { drawUkiyo(exportCtx, bgCanvas.width, bgCanvas.height, t_time, t.colors, skipBgColor, true); }
+                        else if (t.animated === 'resonance') { drawResonance(exportCtx, bgCanvas.width, bgCanvas.height, t_time, skipBgColor, true); }
+                        else if (t.animated === 'eclipse') { drawEclipse(exportCtx, bgCanvas.width, bgCanvas.height, t_time, skipBgColor, true); }
+                        else {
+                            if (videoOverlayMode === 2) {
+                                exportCtx.fillStyle = `rgb(${t.bgRGB})`;
+                                exportCtx.fillRect(0, 0, bgCanvas.width, bgCanvas.height);
+                            }
+                        }
+                        exportCtx.globalAlpha = 1.0;
+                        exportCtx.globalCompositeOperation = 'source-over';
                     }
 
                     let grainVal = parseFloat(document.getElementById('videoGrainCtrl').value) || 0;
                     if(grainVal > 0) {
                         exportCtx.globalAlpha = grainVal;
-                        exportCtx.globalCompositeOperation = 'source-over';
-                        drawVideoCover(exportCtx, grainFrames[Math.floor(t_time * 15) % 4], exportCanvas.width, exportCanvas.height);
+                        exportCtx.drawImage(grainFrames[Math.floor(t_time * 15) % 4], 0, 0, bgCanvas.width, bgCanvas.height);
+                        exportCtx.globalAlpha = 1.0;
                     }
                 } else {
-                    exportCtx.globalAlpha = 1.0;
-                    exportCtx.globalCompositeOperation = 'source-over';
-                    renderThemeToCtx(exportCtx, exportCanvas.width, exportCanvas.height, t_time, false, true, t);
+                    if (t.animated === 'linear') { drawLinearMorph(exportCtx, bgCanvas.width, bgCanvas.height, t_time, false, false); } 
+                    else if (t.animated === 'radial') { drawRadialMist(exportCtx, bgCanvas.width, bgCanvas.height, t_time, false, false); } 
+                    else if (t.animated === 'dopamine') { drawDopamine(exportCtx, bgCanvas.width, bgCanvas.height, t_time, false, false); }
+                    else if (t.animated === 'prophecy') { drawProphecy(exportCtx, bgCanvas.width, bgCanvas.height, t_time, false, false); }
+                    else if (t.animated === 'sunset') { drawSunset(exportCtx, bgCanvas.width, bgCanvas.height, t_time, false, false); }
+                    else if (t.animated === 'dusk') { drawDusk(exportCtx, bgCanvas.width, bgCanvas.height, t_time, false, false); }
+                    else if (t.animated === 'ukiyoe') { drawUkiyo(exportCtx, bgCanvas.width, bgCanvas.height, t_time, t.colors, false, false); }
+                    else if (t.animated === 'resonance') { drawResonance(exportCtx, bgCanvas.width, bgCanvas.height, t_time, false, false); }
+                    else if (t.animated === 'eclipse') { drawEclipse(exportCtx, bgCanvas.width, bgCanvas.height, t_time, false, false); }
+                    else { exportCtx.fillStyle = `rgb(${t.bgRGB})`; exportCtx.fillRect(0, 0, bgCanvas.width, bgCanvas.height); }
                 }
-                
-                // 2. Native Integer Contain Math for Physics (Never stretches dots)
-                exportCtx.globalAlpha = 1.0;
-                exportCtx.globalCompositeOperation = 'source-over';
-                
-                const cW = exportCanvas.width;
-                const cH = exportCanvas.height;
-                const vW = canvas.width;
-                const vH = canvas.height;
-                const sourceRatio = vW / vH;
-                const targetRatio = cW / cH;
-                let dx = 0, dy = 0, dw = cW, dh = cH;
-                if (sourceRatio > targetRatio) { 
-                    dh = cW / sourceRatio; 
-                    dy = (cH - dh) / 2; 
-                } else { 
-                    dw = cH * sourceRatio; 
-                    dx = (cW - dw) / 2; 
-                }
-                exportCtx.drawImage(canvas, 0, 0, vW, vH, Math.round(dx), Math.round(dy), Math.round(dw), Math.round(dh));
+                exportCtx.restore();
+
+                let scaleFg = Math.min(exportCanvas.width / canvas.width, exportCanvas.height / canvas.height); 
+                let dwFg = canvas.width * scaleFg; let dhFg = canvas.height * scaleFg; 
+                let dxFg = (exportCanvas.width - dwFg) / 2; let dyFg = (exportCanvas.height - dhFg) / 2;
+                exportCtx.drawImage(canvas, dxFg, dyFg, dwFg, dhFg);
 
                 if (infoState > 0) {
                     let isPortraitExport = exportCanvas.height > exportCanvas.width;
                     const titleText = (document.getElementById('trackTitleCtrl').value || 'UNTITLED SEQUENCE').toUpperCase(); const dateText = "COMPOSED: " + document.getElementById('zenDateText').innerText; const brandingText = "MADE WITH HIRAJOSHI WAVE STUDIO";
                     exportCtx.save(); exportCtx.textAlign = "right"; exportCtx.textBaseline = "bottom"; exportCtx.shadowColor = "rgba(0, 0, 0, 0.8)"; exportCtx.shadowBlur = 12; exportCtx.shadowOffsetY = 4; exportCtx.shadowOffsetX = 0;
                     const refWidth = Math.min(exportCanvas.width, exportCanvas.height); const baseFontSize = isPortraitExport ? (refWidth * 0.025) : (refWidth * 0.025); const stateScale = infoState === 1 ? 1 : infoState === 2 ? 1.15 : 1.30; const fScale = stateScale;
-                    let burnX = isPortraitExport ? (Math.round(dx) + Math.round(dw) - 40) : (exportCanvas.width - 40); let burnY = isPortraitExport ? (Math.round(dy) + Math.round(dh) + 120) : (exportCanvas.height - 40);
+                    let burnX = isPortraitExport ? (Math.round(dxFg) + Math.round(dwFg) - 40) : (exportCanvas.width - 40); let burnY = isPortraitExport ? (Math.round(dyFg) + Math.round(dhFg) + 120) : (exportCanvas.height - 40);
                     exportCtx.fillStyle = "white"; exportCtx.globalAlpha = 0.5; exportCtx.font = `600 ${baseFontSize * 0.8 * fScale}px 'JetBrains Mono', monospace`; exportCtx.fillText(brandingText, burnX, burnY);
                     burnY -= (baseFontSize * 1.5 * fScale); exportCtx.globalAlpha = 0.7; exportCtx.font = `600 ${baseFontSize * 0.9 * fScale}px 'JetBrains Mono', monospace`; exportCtx.fillText(dateText, burnX, burnY);
                     burnY -= (baseFontSize * 1.6 * fScale); exportCtx.globalAlpha = 0.9; exportCtx.font = `600 ${baseFontSize * 1.1 * fScale}px 'JetBrains Mono', monospace`; exportCtx.fillText(titleText, burnX, burnY);
@@ -1429,7 +1476,6 @@
                 if (isExportingSnippet) return; initAudio(); if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
                 isRenderCancelled = false; 
                 
-                // Version 2.2 Fix: The export canvas sets its resolution based on the loaded video aspect ratio.
                 let isPortraitExport = customVideoActive ? (bgVideoElement.videoHeight > bgVideoElement.videoWidth) : (window.innerHeight > window.innerWidth);
                 exportCanvas.width = isPortraitExport ? 1080 : 1920;
                 exportCanvas.height = isPortraitExport ? 1920 : 1080;
@@ -1518,7 +1564,6 @@
             document.getElementById('videoInput').addEventListener('change', function(e) {
                 let file = e.target.files[0]; if(!file) return; let url = URL.createObjectURL(file); bgVideoElement.src = url;
                 bgVideoElement.onloadedmetadata = () => {
-                    // Version 2.2 Fix: Never change the live canvas dimensions to prevent physics distortion.
                     canvas.width = 1920; canvas.height = 1080;
                     bgCanvas.width = 1920; bgCanvas.height = 1080;
                     initGrain(1920, 1080);
@@ -1585,16 +1630,25 @@
                 const rect = canvas.getBoundingClientRect(); const scaleX = canvas.width / rect.width; const scaleY = canvas.height / rect.height; const clickX = (e.clientX - rect.left) * scaleX; const clickY = (e.clientY - rect.top) * scaleY;
                 if (canvasMode === 'draw') { customPath.push({x: clickX, y: clickY}); recalculatePath(); return; }
                 if (canvasMode === 'edit') {
-                    let closestIndex = -1, minDist = Infinity; const activeSettings = focusedSliceId !== null ? slicesData.find(s => s.id === focusedSliceId).settings : mainState; const activeShape = activeSettings.shape; let targetPendulums = focusedSliceId !== null ? slicesData.find(s => s.id === focusedSliceId).livePendulums : mainPendulums;
+                    let closestIndex = -1, minDist = Infinity; 
+                    const activeSettings = focusedSliceId !== null ? slicesData.find(s => s.id === focusedSliceId).settings : mainState; 
+                    const activeShape = activeSettings.shape; 
+                    let targetPendulums = focusedSliceId !== null ? slicesData.find(s => s.id === focusedSliceId).livePendulums : mainPendulums;
+                    
+                    // --- DRAW MODE LOOP FIX (Editing) ---
+                    // Ensures the edit cursor detects dots based on the active loop's path, not the global path
+                    let targetPathData = focusedSliceId !== null ? slicesData.find(s => s.id === focusedSliceId).pathData : { path: customPath, distances: pathDistances, totalLength: totalPathLength };
+                    const tPath = targetPathData.path; const tDists = targetPathData.distances; const tLen = targetPathData.totalLength;
+                    
                     const totalDots = targetPendulums.length; const cx = canvas.width / 2; const pad = 50 * scaleRatio; let effectiveHeight = canvas.height; let yOffset = 0; if (canvas.height > canvas.width) { effectiveHeight = canvas.width * (1080 / 1920); yOffset = (canvas.height - effectiveHeight) / 2; }
                     const hRange = effectiveHeight - (pad * 2); const baseR = canvas.width * 0.33; const topY = yOffset + pad; const bottomY = yOffset + effectiveHeight - pad;
                     
                     targetPendulums.forEach((p, index) => {
                         let px, py;
                         let effectivePhase = p.phase + (p.phaseOffset || 0);
-                        if (customPath.length > 1) {
-                            const t = (Math.sin(effectivePhase) + 1) / 2; const d = t * totalPathLength; let targetX = customPath[0].x, targetY = customPath[0].y;
-                            for(let i=1; i<pathDistances.length; i++) { if (d <= pathDistances[i] || i === pathDistances.length - 1) { let prevD = pathDistances[i-1], segLen = pathDistances[i] - prevD; let localT = segLen === 0 ? 0 : (d - prevD) / segLen; targetX = customPath[i-1].x + (customPath[i].x - customPath[i-1].x) * localT; targetY = customPath[i-1].y + (customPath[i].y - customPath[i-1].y) * localT; break; } }
+                        if (tPath.length > 1) {
+                            const t = (Math.sin(effectivePhase) + 1) / 2; const d = t * tLen; let targetX = tPath[0].x, targetY = tPath[0].y;
+                            for(let i=1; i<tDists.length; i++) { if (d <= tDists[i] || i === tDists.length - 1) { let prevD = tDists[i-1], segLen = tDists[i] - prevD; let localT = segLen === 0 ? 0 : (d - prevD) / segLen; targetX = tPath[i-1].x + (tPath[i].x - tPath[i-1].x) * localT; targetY = tPath[i-1].y + (tPath[i].y - tPath[i-1].y) * localT; break; } }
                             px = targetX; py = targetY;
                         } else {
                             const normalizedY = totalDots > 1 ? (index / (totalDots - 1)) : 0.5; py = topY + (normalizedY * hRange); let range; let localCx = cx;
