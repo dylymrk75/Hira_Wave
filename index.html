@@ -162,7 +162,7 @@
         <!-- HEADER -->
         <div class="hardware-panel" style="padding: 12px 16px; padding-bottom: 12px;">
             <div class="app-header" style="margin-bottom: 8px; padding-bottom: 8px;">
-                <div><h1 class="logo-text">HIRA WAVE STUDIO</h1><div class="logo-sub">GENERATIVE POLYRHYTHMIC SEQUENCER • v2.1</div></div>
+                <div><h1 class="logo-text">HIRA WAVE STUDIO</h1><div class="logo-sub">GENERATIVE POLYRHYTHMIC SEQUENCER • v2.2</div></div>
             </div>
             <div class="track-title-row"><label>TITLE:</label><input type="text" id="trackTitleCtrl" class="track-title-input" value="UNTITLED SEQUENCE"></div>
         </div>
@@ -516,7 +516,7 @@
             { id: 'ukiyoe3', name: 'UKIYO 3', bgRGB: '5, 15, 30', line: '10, 30, 45', animated: 'ukiyoe', colors: ['#04264b', '#1f71ad', '#f0f4ec', '#f2d427', '#bc8516'], getDotColor: (i, total, op) => `hsla(200, 70%, 12%, ${op})` },
             { id: 'locus', name: 'LOCUS VOID', bgRGB: '245, 233, 211', line: '255, 255, 255', animated: 'locus', getDotColor: (i, total, op) => `rgba(255, 255, 255, ${op})` },
             { id: 'ganzfeld', name: 'GANZFELD WASH', bgRGB: '255, 255, 255', line: '17, 17, 17', animated: 'ganzfeld', getDotColor: (i, total, op) => `rgba(17, 17, 17, ${op})` },
-            { id: 'prismatic', name: 'PRISMATIC HORIZON', bgRGB: '5, 5, 5', line: '80, 80, 80', animated: 'prismatic', getDotColor: (i, total, op) => `hsla(${20 + (i/total)*300}, 90%, 65%, ${op})` }
+            { id: 'prismatic', name: 'PRISMATIC HORIZON', bgRGB: '5, 5, 5', line: '80, 80, 80', animated: 'prismatic', getDotColor: (i, total, op) => `hsla(${20 + (i/(total>1?total-1:1))*300}, 90%, 65%, ${op})` }
         ];
 
         let selectedDuration = 30, isExportingSnippet = false, isRenderCancelled = false; let snippetMediaRecorder = null, snippetChunks = [], snippetStartTime = 0, snippetTargetMs = 30000; const scaleRatio = 2.7; 
@@ -1262,14 +1262,29 @@
                 // 2. Native Integer Contain Math for Physics (Never stretches dots)
                 exportCtx.globalAlpha = 1.0;
                 exportCtx.globalCompositeOperation = 'source-over';
-                drawVideoContain(exportCtx, canvas, exportCanvas.width, exportCanvas.height);
+                
+                const cW = exportCanvas.width;
+                const cH = exportCanvas.height;
+                const vW = canvas.width;
+                const vH = canvas.height;
+                const sourceRatio = vW / vH;
+                const targetRatio = cW / cH;
+                let dx = 0, dy = 0, dw = cW, dh = cH;
+                if (sourceRatio > targetRatio) { 
+                    dh = cW / sourceRatio; 
+                    dy = (cH - dh) / 2; 
+                } else { 
+                    dw = cH * sourceRatio; 
+                    dx = (cW - dw) / 2; 
+                }
+                exportCtx.drawImage(canvas, 0, 0, vW, vH, Math.round(dx), Math.round(dy), Math.round(dw), Math.round(dh));
 
                 if (infoState > 0) {
                     let isPortraitExport = exportCanvas.height > exportCanvas.width;
                     const titleText = (document.getElementById('trackTitleCtrl').value || 'UNTITLED SEQUENCE').toUpperCase(); const dateText = "COMPOSED: " + document.getElementById('zenDateText').innerText; const brandingText = "MADE WITH HIRAJOSHI WAVE STUDIO";
                     exportCtx.save(); exportCtx.textAlign = "right"; exportCtx.textBaseline = "bottom"; exportCtx.shadowColor = "rgba(0, 0, 0, 0.8)"; exportCtx.shadowBlur = 12; exportCtx.shadowOffsetY = 4; exportCtx.shadowOffsetX = 0;
                     const refWidth = Math.min(exportCanvas.width, exportCanvas.height); const baseFontSize = isPortraitExport ? (refWidth * 0.025) : (refWidth * 0.025); const stateScale = infoState === 1 ? 1 : infoState === 2 ? 1.15 : 1.30; const fScale = stateScale;
-                    let burnX = exportCanvas.width - 40; let burnY = exportCanvas.height - 40;
+                    let burnX = isPortraitExport ? (Math.round(dx) + Math.round(dw) - 40) : (exportCanvas.width - 40); let burnY = isPortraitExport ? (Math.round(dy) + Math.round(dh) + 120) : (exportCanvas.height - 40);
                     exportCtx.fillStyle = "white"; exportCtx.globalAlpha = 0.5; exportCtx.font = `600 ${baseFontSize * 0.8 * fScale}px 'JetBrains Mono', monospace`; exportCtx.fillText(brandingText, burnX, burnY);
                     burnY -= (baseFontSize * 1.5 * fScale); exportCtx.globalAlpha = 0.7; exportCtx.font = `600 ${baseFontSize * 0.9 * fScale}px 'JetBrains Mono', monospace`; exportCtx.fillText(dateText, burnX, burnY);
                     burnY -= (baseFontSize * 1.6 * fScale); exportCtx.globalAlpha = 0.9; exportCtx.font = `600 ${baseFontSize * 1.1 * fScale}px 'JetBrains Mono', monospace`; exportCtx.fillText(titleText, burnX, burnY);
@@ -1412,28 +1427,34 @@
 
             document.getElementById('renderSnippetBtn').addEventListener('click', () => {
                 if (isExportingSnippet) return; initAudio(); if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
-                isRenderCancelled = false; let isPortraitExport = window.innerHeight > window.innerWidth;
-                if (isPortraitExport) { exportCanvas.width = 1080; exportCanvas.height = 1920; } else { exportCanvas.width = 1920; exportCanvas.height = 1080; }
+                isRenderCancelled = false; 
+                
+                // Version 2.2 Fix: The export canvas sets its resolution based on the loaded video aspect ratio.
+                let isPortraitExport = customVideoActive ? (bgVideoElement.videoHeight > bgVideoElement.videoWidth) : (window.innerHeight > window.innerWidth);
+                exportCanvas.width = isPortraitExport ? 1080 : 1920;
+                exportCanvas.height = isPortraitExport ? 1920 : 1080;
                 
                 snippetTargetMs = selectedDuration * 1000;
                 let exportFPS = 30; let exportBitrate = 15000000; let ramFlushRate = 1000; 
                 
-                const videoStream = exportCanvas.captureStream(exportFPS); const audioStream = streamDest.stream;
-                const combinedStream = new MediaStream([ videoStream.getVideoTracks()[0], audioStream.getAudioTracks()[0] ]);
-                let mimeType = 'video/mp4'; if (!MediaRecorder.isTypeSupported(mimeType)) { mimeType = 'video/webm;codecs=vp9,opus'; if (!MediaRecorder.isTypeSupported(mimeType)) { mimeType = 'video/webm'; } }
-                
-                snippetChunks = []; snippetMediaRecorder = new MediaRecorder(combinedStream, { mimeType: mimeType, videoBitsPerSecond: exportBitrate });
-                snippetMediaRecorder.ondataavailable = e => { if (e.data.size > 0) snippetChunks.push(e.data); };
-                
-                snippetMediaRecorder.onstop = () => {
-                    if (isRenderCancelled) { snippetChunks = []; isExportingSnippet = false; document.getElementById('exportProgressArea').style.display = 'none'; document.getElementById('renderSnippetBtn').innerText = 'EXPORT VIDEO (.MP4 / .WEBM)'; document.getElementById('renderSnippetBtn').disabled = false; return; }
-                    try { const blob = new Blob(snippetChunks, { type: mimeType }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.style.display = 'none'; a.href = url; const ext = mimeType.includes('mp4') ? 'mp4' : 'webm'; const trackTitle = (document.getElementById('trackTitleCtrl').value || 'UNTITLED').replace(/\s+/g, '_'); a.download = `HIRA_WAVE_${trackTitle}_${selectedDuration}s.${ext}`; document.body.appendChild(a); a.click(); window.URL.revokeObjectURL(url); } catch (err) { console.error("File compilation failed:", err); alert("Export failed. Try a shorter duration (15s)."); }
-                    snippetChunks = []; isExportingSnippet = false; document.getElementById('exportProgressArea').style.display = 'none'; document.getElementById('renderSnippetBtn').innerText = 'EXPORT VIDEO (.MP4 / .WEBM)'; document.getElementById('renderSnippetBtn').disabled = false;
-                };
-                
-                snippetMediaRecorder.start(ramFlushRate); isExportingSnippet = true; snippetStartTime = performance.now();
-                document.getElementById('exportProgressArea').style.display = 'block'; document.getElementById('exportProgressBar').style.width = '0%'; document.getElementById('renderSnippetBtn').innerText = 'RENDERING VIDEO...'; document.getElementById('renderSnippetBtn').disabled = true;
-                if (!isPlaying) document.getElementById('startBtn').click();
+                setTimeout(() => {
+                    const videoStream = exportCanvas.captureStream(exportFPS); const audioStream = streamDest.stream;
+                    const combinedStream = new MediaStream([ videoStream.getVideoTracks()[0], audioStream.getAudioTracks()[0] ]);
+                    let mimeType = 'video/mp4'; if (!MediaRecorder.isTypeSupported(mimeType)) { mimeType = 'video/webm;codecs=vp9,opus'; if (!MediaRecorder.isTypeSupported(mimeType)) { mimeType = 'video/webm'; } }
+                    
+                    snippetChunks = []; snippetMediaRecorder = new MediaRecorder(combinedStream, { mimeType: mimeType, videoBitsPerSecond: exportBitrate });
+                    snippetMediaRecorder.ondataavailable = e => { if (e.data.size > 0) snippetChunks.push(e.data); };
+                    
+                    snippetMediaRecorder.onstop = () => {
+                        if (isRenderCancelled) { snippetChunks = []; isExportingSnippet = false; document.getElementById('exportProgressArea').style.display = 'none'; document.getElementById('renderSnippetBtn').innerText = 'EXPORT VIDEO (.MP4 / .WEBM)'; document.getElementById('renderSnippetBtn').disabled = false; return; }
+                        try { const blob = new Blob(snippetChunks, { type: mimeType }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.style.display = 'none'; a.href = url; const ext = mimeType.includes('mp4') ? 'mp4' : 'webm'; const trackTitle = (document.getElementById('trackTitleCtrl').value || 'UNTITLED').replace(/\s+/g, '_'); a.download = `HIRA_WAVE_${trackTitle}_${selectedDuration}s.${ext}`; document.body.appendChild(a); a.click(); window.URL.revokeObjectURL(url); } catch (err) { console.error("File compilation failed:", err); alert("Export failed. Try a shorter duration (15s)."); }
+                        snippetChunks = []; isExportingSnippet = false; document.getElementById('exportProgressArea').style.display = 'none'; document.getElementById('renderSnippetBtn').innerText = 'EXPORT VIDEO (.MP4 / .WEBM)'; document.getElementById('renderSnippetBtn').disabled = false;
+                    };
+                    
+                    snippetMediaRecorder.start(ramFlushRate); isExportingSnippet = true; snippetStartTime = performance.now();
+                    document.getElementById('exportProgressArea').style.display = 'block'; document.getElementById('exportProgressBar').style.width = '0%'; document.getElementById('renderSnippetBtn').innerText = 'RENDERING VIDEO...'; document.getElementById('renderSnippetBtn').disabled = true;
+                    if (!isPlaying) document.getElementById('startBtn').click();
+                }, 50);
             });
 
             document.getElementById('cancelRenderBtn').addEventListener('click', () => { if (isExportingSnippet) { isRenderCancelled = true; isExportingSnippet = false; if (snippetMediaRecorder && snippetMediaRecorder.state !== 'inactive') { snippetMediaRecorder.stop(); } document.getElementById('exportProgressArea').style.display = 'none'; document.getElementById('renderSnippetBtn').innerText = 'EXPORT VIDEO (.MP4 / .WEBM)'; document.getElementById('renderSnippetBtn').disabled = false; } });
@@ -1497,14 +1518,10 @@
             document.getElementById('videoInput').addEventListener('change', function(e) {
                 let file = e.target.files[0]; if(!file) return; let url = URL.createObjectURL(file); bgVideoElement.src = url;
                 bgVideoElement.onloadedmetadata = () => {
-                    if (bgVideoElement.videoHeight > bgVideoElement.videoWidth) {
-                        canvas.width = 1080; canvas.height = 1920;
-                        bgCanvas.width = 1080; bgCanvas.height = 1920;
-                    } else {
-                        canvas.width = 1920; canvas.height = 1080;
-                        bgCanvas.width = 1920; bgCanvas.height = 1080;
-                    }
-                    initGrain(bgCanvas.width, bgCanvas.height);
+                    // Version 2.2 Fix: Never change the live canvas dimensions to prevent physics distortion.
+                    canvas.width = 1920; canvas.height = 1080;
+                    bgCanvas.width = 1920; bgCanvas.height = 1080;
+                    initGrain(1920, 1080);
                     forceCanvasWipe();
                 };
                 bgVideoElement.play().then(() => { 
